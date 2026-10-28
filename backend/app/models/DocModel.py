@@ -1,8 +1,9 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
+import uuid
 
 class DocumentModel(BaseModel):
-    id : int
-    filename : str
-    size_bytes : int
-    uploaded_At : datetime
+    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    file_name: str
+    size_byte: int
+    updated_at: datetime

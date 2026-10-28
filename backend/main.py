@@ -42,8 +42,8 @@ async def post_document(file: UploadFile = File(...)):
 
     if file.size is not None and file.size > MAX_FILE_SIZE:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="File is empty",
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="File size must not be greater than 10 MB",
         )
 
     # Reading File Content chunk by chunk because it is not necessary file size available always
@@ -56,6 +56,9 @@ async def post_document(file: UploadFile = File(...)):
             raise HTTPException(
                 status_code=413, detail="File size must not exceed 10 MB"
             )
+
+    if total_size == 0:
+        raise HTTPException(status_code=400, detail="Empty File Not Allowed")
 
     document = DocumentModel(
         file_name=Path(file.filename).name,

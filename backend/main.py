@@ -13,10 +13,6 @@ ALLOWED_FORMATS = [".pdf", ".txt", ".docx"]
 CHUNK_SIZE = 1024 * 1024
 
 
-def generate_unique_id():
-    pass
-
-
 @app.get("/", status_code=status.HTTP_200_OK)
 def home():
     return {"message": "Welcome to AI Doc Assistant"}

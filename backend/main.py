@@ -7,7 +7,7 @@ app = FastAPI(
     title="AI Doc Assistant", description="My first FastAPI backend", version="1.0.0"
 )
 
-DOCUMENTS: list[DocumentModel] = []
+documents: list[DocumentModel] = []
 MAX_FILE_SIZE = 10 * 1024 * 1024
 ALLOWED_FORMATS = [".pdf", ".txt", ".docx"]
 CHUNK_SIZE = 1024 * 1024
@@ -62,7 +62,7 @@ async def post_document(file: UploadFile = File(...)):
         updated_at=datetime.now(timezone.utc),
     )
 
-    DOCUMENTS.append(document)
+    documents.append(document)
     return document
 
 
@@ -70,4 +70,4 @@ async def post_document(file: UploadFile = File(...)):
     "/documents", response_model=list[DocumentModel], status_code=status.HTTP_200_OK
 )
 def get_documents():
-    return DOCUMENTS
+    return documents

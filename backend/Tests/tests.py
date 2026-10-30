@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 from app.models.DocModel import DocumentModel
-from main import app, DOCUMENTS
+from main import app, documents
 import pytest
 
 client = TestClient(app)
@@ -9,7 +9,7 @@ client = TestClient(app)
 @pytest.fixture(autouse=True)
 def reset_documents():
     """Clear all documents"""
-    DOCUMENTS.clear()
+    documents.clear()
 
 
 def test_health():

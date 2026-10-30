@@ -1,9 +1,11 @@
-from pydantic import BaseModel, Field
-from datetime import datetime
-import uuid
+from sqlmodel import SQLModel, Field
+from datetime import datetime, timezone
 
-class DocumentModel(BaseModel):
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    file_name: str
-    size_byte: int
-    updated_at: datetime
+class Document(SQLModel , table=True):
+    id: int | None = Field(default=None , primary_key=True)
+    filename: str
+    content_type: str
+    size_bytes: int
+    uploaded_at: datetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )

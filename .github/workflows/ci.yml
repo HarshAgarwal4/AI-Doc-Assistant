@@ -1,4 +1,3 @@
-
 name: Python CI
 
 on:
@@ -12,6 +11,9 @@ jobs:
   test:
     name: Code Quality and Tests
     runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: "sqlite:///./ci_test.db"
 
     defaults:
       run:

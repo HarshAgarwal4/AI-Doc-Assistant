@@ -57,7 +57,7 @@ async def post_document(
 
     # Reading File Content chunk by chunk because it is not necessary file size available always
     while True:
-        chunk = await file.read(1024 * 1024)
+        chunk = await file.read(CHUNK_SIZE)
         if not chunk:
             break
         total_size = total_size + len(chunk)
@@ -81,7 +81,7 @@ async def post_document(
         session.refresh(document)
 
         return document
-    except Exception as e:
+    except Exception:
         session.rollback()
         raise
     finally:

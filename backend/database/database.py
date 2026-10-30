@@ -4,14 +4,15 @@ import os
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL") or 'postgresql+psycopg://postgres:YOUR_PASSWORD@localhost:5432/ai_doc_assistant'
+DATABASE_URL = os.getenv("DATABASE_URL")
+PRODUCTION = os.getenv('PRODUCTION')
 
 if not DATABASE_URL:
     raise RuntimeError('DATABASE URL IS MISSING')
 
 engine = create_engine(
     DATABASE_URL,
-    echo=True
+    echo=PRODUCTION != 'True'
 )
 
 def create_db_and_tables():

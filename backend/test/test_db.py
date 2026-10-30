@@ -1,10 +1,12 @@
 from collections.abc import Generator
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
-from sqlmodel import SQLModel, Session, create_engine
-from database.database import get_session
+from sqlmodel import Session, SQLModel, create_engine
+
 from app.models.docModel import Document
+from database.database import get_session
 from main import app
 
 # In-memory SQLite database for testing
@@ -50,9 +52,7 @@ def test_home(client: TestClient):
     response = client.get("/")
 
     assert response.status_code == 200
-    assert response.json() == {
-        "message": "Welcome to AI Doc Assistant"
-    }
+    assert response.json() == {"message": "Welcome to AI Doc Assistant"}
 
 
 # 2. Test health endpoint
@@ -104,7 +104,7 @@ def test_wrong_file_format(client: TestClient):
     )
 
     assert response.status_code == 415
-    assert response.json()["detail"] == "file format not allowed"
+    assert response.json()["detail"] == "File format not allowed"
 
 
 # 5. Test file greater than 10 MB

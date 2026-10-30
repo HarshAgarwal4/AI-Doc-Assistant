@@ -1,0 +1,38 @@
+[project]
+name = "backend"
+version = "0.1.0"
+description = "This is the fast API backend setup for an AI DOC ASSISTANT app"
+readme = "README.md"
+authors = [
+    { name = "HarshAgarwal4", email = "agarwalh485@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.162.0",
+    "psycopg[binary]>=3.3.6",
+    "pydantic>=2.14.1",
+    "pytest>=9.2.0",
+    "python-dotenv>=1.2.4",
+    "python-multipart>=0.0.32",
+    "sqlmodel>=0.0.48",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[project.scripts]
+backend = "backend:main"
+
+[build-system]
+requires = ["uv_build>=0.13.4,<0.14.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "httpx2>=2.16.0",
+    "pytest>=9.2.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["test"]
+python_files = ["test_*.py", "tests.py"]

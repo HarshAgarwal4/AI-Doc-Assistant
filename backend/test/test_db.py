@@ -1,15 +1,11 @@
-
 from collections.abc import Generator
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.pool import StaticPool
 from sqlmodel import SQLModel, Session, create_engine
-
-from main import app
 from database.database import get_session
 from app.models.docModel import Document
-
+from main import app
 
 # In-memory SQLite database for testing
 test_engine = create_engine(

@@ -9,3 +9,4 @@ class Document(SQLModel, table=True):
     content_type: str
     size_bytes: int
     uploaded_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    status: bool | None = Field(default=True)

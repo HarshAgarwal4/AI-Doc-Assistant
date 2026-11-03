@@ -37,3 +37,8 @@ dev = [
 pythonpath = ["."]
 testpaths = ["test"]
 python_files = ["test_*.py", "tests.py"]
+
+[tool.ruff]
+extend-exclude = [
+    "migrations/"
+]

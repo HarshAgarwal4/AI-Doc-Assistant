@@ -1,4 +1,4 @@
-
+# ruff: noqa: F401
 import os
 from logging.config import fileConfig
 
@@ -8,6 +8,7 @@ from alembic import context
 from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
+from app.models.docModel import Document
 
 load_dotenv()
 

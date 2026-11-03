@@ -18,7 +18,9 @@ services:
     restart: unless-stopped
 
   migrate:
-    build: .
+    image: ai-doc-assistant
+    build: &app-build
+      context: .
     command: alembic upgrade head
     env_file:
       - .env
@@ -30,7 +32,8 @@ services:
     restart: "no"
 
   app:
-    build: .
+    image: ai-doc-assistant
+    build: *app-build
     ports:
       - "8000:8000"
     env_file:

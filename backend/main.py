@@ -1,4 +1,3 @@
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
@@ -6,19 +5,11 @@ from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from sqlmodel import Session, select
 
 from app.models.docModel import Document
-from database.database import create_db_and_tables, get_session
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    create_db_and_tables()
-    yield
-
+from database.database import get_session
 
 app = FastAPI(
     title="AI Doc Assistant",
     description="My first FastAPI backend with Postgres",
-    lifespan=lifespan,
     version="1.0.0",
 )
 

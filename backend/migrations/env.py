@@ -5,7 +5,6 @@ from logging.config import fileConfig
 from alembic import context
 
 # Import all SQLModel table models
-from app.models.docModel import Document
 from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel

@@ -1,12 +1,10 @@
-from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
-from sqlmodel import Session, select
-
 from app.models.docModel import Document
 from database.database import get_session
+from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
+from sqlmodel import Session, select
 
 app = FastAPI(
     title="AI Doc Assistant",

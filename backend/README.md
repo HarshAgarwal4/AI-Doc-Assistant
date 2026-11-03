@@ -1,6 +1,6 @@
 # AI Doc Assistant
 
-A high-performance document management API built with **FastAPI, Pydantic v2, SQLModel, PostgreSQL, and Docker**. The application supports document validation, metadata persistence, and automated testing, with a reproducible development environment powered by `uv`.
+A high-performance document management API built with **FastAPI, Pydantic v2, SQLModel, PostgreSQL, Alembic, and Docker**. The application supports document validation, metadata persistence, and automated testing, with a reproducible development environment powered by `uv`.
 
 ## 🚀 Features
 
@@ -12,6 +12,7 @@ A high-performance document management API built with **FastAPI, Pydantic v2, SQ
   - Maximum file size: 10 MB (`413 Content Too Large`).
   - Empty files return `400 Bad Request`.
 - **Persistent Metadata Storage:** SQLModel and PostgreSQL store document metadata.
+- **Database Migrations:** Schema version control and automated migrations powered by Alembic.
 - **Document Metadata:** Tracks ID, filename, content type, file size in bytes, and upload timestamp.
 - **Document Management:** Endpoints for uploading documents, listing all documents, and retrieving metadata.
 - **Interactive API Documentation:** Swagger UI (`/docs`) and ReDoc (`/redoc`).
@@ -34,20 +35,24 @@ AI Doc Assistant/
     ├── .dockerignore
     ├── Dockerfile
     ├── docker-compose.yml
+    ├── alembic.ini
     ├── pyproject.toml
     ├── uv.lock
     ├── main.py
     ├── app/
-    │   ├── controllers/
-    │   ├── models/
-    │   │   ├── __init__.py
-    │   │   └── document.py
-    │   └── routes/
-    ├── Database/
-    │   ├── __init__.py
+    │   └── models/
+    │       └── docModel.py
+    ├── database/
     │   └── database.py
-    ├── Tests/
-    │   └── tests.py
+    ├── migrations/
+    │   ├── versions/
+    │   │   ├── 311e68bff81f_tables_initialised.py
+    │   │   └── b799f7514e3b_tables_updated.py
+    │   ├── env.py
+    │   ├── script.py.mako
+    │   └── README
+    ├── test/
+    │   └── test_db.py
     └── src/
         └── backend/
             └── __init__.py
@@ -111,6 +116,14 @@ uv sync --all-groups
 
 This creates or updates the virtual environment and installs the dependencies defined in `pyproject.toml` and `uv.lock`.
 
+Apply database migrations:
+
+After running `uv sync`, apply database migrations using Alembic:
+
+```bash
+uv run alembic upgrade head
+```
+
 ## 🔐 Environment Configuration
 
 Create a `.env` file inside the `backend/` directory.
@@ -150,12 +163,44 @@ DATABASE_URL=postgresql+psycopg://postgres:replace_me@db:5432/ai_doc_assistant
 
 **Important:** The `.env` file is for local development and must not be committed to Git. Add `.env` to `.gitignore`. Docker Compose reads `.env` for variable substitution, while the application service receives its environment configuration through Compose.
 
+## 🗄️ Database Migrations with Alembic
+
+Database schema migrations are managed using **Alembic**. This ensures reproducible, version-controlled schema evolution across local environments and Docker deployments.
+
+### Common Alembic Commands
+
+- **Apply all migrations:**
+  ```bash
+  uv run alembic upgrade head
+  ```
+
+- **Generate a new migration (after modifying models):**
+  ```bash
+  uv run alembic revision --autogenerate -m "describe_changes"
+  ```
+
+- **Roll back the last migration:**
+  ```bash
+  uv run alembic downgrade -1
+  ```
+
+- **Check current migration version:**
+  ```bash
+  uv run alembic current
+  ```
+
+- **View migration history:**
+  ```bash
+  uv run alembic history --verbose
+  ```
+
 ## 🐳 Running with Docker
 
-Docker Compose runs two services:
+Docker Compose runs three services:
 
-- **app:** The FastAPI application.
-- **db:** PostgreSQL 16.
+- **db:** PostgreSQL 16 database.
+- **migrate:** Runs `alembic upgrade head` after PostgreSQL becomes healthy, ensuring all schema migrations are applied before the application starts.
+- **app:** The FastAPI application (starts automatically once migrations complete successfully).
 
 The database uses a named Docker volume so its data persists when containers are stopped and recreated.
 
@@ -252,13 +297,19 @@ Use it only when you intentionally want to reset the development database.
 
 For local development, the application can run directly through `uv`. A PostgreSQL server must be running and accessible using the local connection URL.
 
-Configure `DATABASE_URL` in `.env` to use `localhost`:
+1. Configure `DATABASE_URL` in `.env` to use `localhost`:
 
 ```dotenv
 DATABASE_URL=postgresql+psycopg://postgres:your_local_password@localhost:5432/ai_doc_assistant
 ```
 
-Start the API:
+2. Run database migrations:
+
+```bash
+uv run alembic upgrade head
+```
+
+3. Start the API:
 
 ```bash
 uv run uvicorn main:app --reload --port 8000
@@ -409,6 +460,8 @@ curl -X GET "http://localhost:8000/documents" \
 |---|---|
 | Install dependencies | `uv sync` |
 | Install all dependency groups | `uv sync --all-groups` |
+| Apply database migrations | `uv run alembic upgrade head` |
+| Create database migration | `uv run alembic revision --autogenerate -m "<msg>"` |
 | Add a production dependency | `uv add <package_name>` |
 | Add a development dependency | `uv add --dev <package_name>` |
 | Remove a dependency | `uv remove <package_name>` |
@@ -445,7 +498,8 @@ Never commit actual database passwords or other secrets.
 - [ ] Vector database integration with ChromaDB, Qdrant, or Pinecone.
 - [ ] Retrieval-Augmented Generation (RAG) question-answering endpoint.
 - [ ] Authentication and authorization.
-- [ ] Production deployment and database migrations.
+- [x] Database migrations with Alembic (`uv run alembic upgrade head`).
+- [ ] Production deployment.
 
 ## 📄 License
 

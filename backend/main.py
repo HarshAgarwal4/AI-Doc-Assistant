@@ -2,15 +2,29 @@ from pathlib import Path
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlmodel import Session, select
 
 from app.models.docModel import Document
+from app.models.llm import LLMRequestModel
 from database.database import get_session
+from utils.llm import generate
 
 app = FastAPI(
     title="AI Doc Assistant",
     description="My first FastAPI backend with Postgres",
     version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5000",
+        "http://127.0.0.1:5000",
+    ],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
@@ -108,3 +122,159 @@ def get_documents(
 ):
     documents = session.exec(select(Document)).all()
     return documents
+
+@app.get('/page')
+def get_page():
+    return HTMLResponse(
+        """
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LLM Streaming Tester</title>
+
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 40px auto;
+            padding: 20px;
+            background: #f4f4f4;
+        }
+
+        h2 {
+            text-align: center;
+        }
+
+        input, select, button {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            box-sizing: border-box;
+        }
+
+        button {
+            background: #2563eb;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+
+        button:disabled {
+            background: gray;
+            cursor: not-allowed;
+        }
+
+        #output {
+            background: #111827;
+            color: #4ade80;
+            padding: 20px;
+            min-height: 200px;
+            border-radius: 8px;
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h2>LLM Streaming Tester</h2>
+
+    <input
+        type="text"
+        id="question"
+        placeholder="Enter your question..."
+    />
+
+    <select id="provider">
+        <option value="Google">Google</option>
+        <option value="Groq">Groq</option>
+        <option value="Mistral">Mistral</option>
+        <option value="Ollama">Ollama</option>
+    </select>
+
+    <button id="askBtn" onclick="askQuestion()">
+        Ask AI
+    </button>
+
+    <h3>Live Response:</h3>
+
+    <div id="output">Your response will appear here...</div>
+
+    <script>
+        async function askQuestion() {
+            const question = document.getElementById("question").value;
+            const provider = document.getElementById("provider").value;
+            const output = document.getElementById("output");
+            const button = document.getElementById("askBtn");
+
+            if (!question.trim()) {
+                alert("Please enter a question");
+                return;
+            }
+
+            output.textContent = "";
+            button.disabled = true;
+            button.textContent = "Generating...";
+
+            try {
+                const response = await fetch("http://127.0.0.1:5000/ask", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        question: question,
+                        provider: provider
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(await response.text() || `HTTP ${response.status}`);
+                }
+
+                if (!response.body) {
+                    throw new Error("Streaming is not supported by this response.");
+                }
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { value, done } = await reader.read();
+
+                    if (done) break;
+
+                    output.textContent += decoder.decode(value, {
+                        stream: true
+                    });
+                }
+
+                output.textContent += decoder.decode();
+
+            } catch (error) {
+                output.textContent += "\\n\\nError: " + error.message;
+            } finally {
+                button.disabled = false;
+                button.textContent = "Ask AI";
+            }
+        }
+    </script>
+
+</body>
+</html>
+"""
+    )
+
+@app.post('/ask' , status_code=status.HTTP_200_OK)
+def ask_llm(req : LLMRequestModel , session : Annotated[Session , Depends(get_session)]):
+    return StreamingResponse(
+        generate(question=req.question ,session=session, provider=req.provider),
+        media_type="text/plain"
+    )
+    

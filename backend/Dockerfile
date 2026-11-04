@@ -1,9 +1,12 @@
 
+# Python base image
 FROM python:3.12-slim
 
+# Python environment settings
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+# Working directory
 WORKDIR /app
 
 # Install uv
@@ -15,20 +18,22 @@ COPY pyproject.toml uv.lock ./
 # Install production dependencies
 RUN uv sync --frozen --no-dev --no-install-project
 
-# Copy application source
+# Copy application source code
 COPY main.py ./
 COPY app/ ./app/
 COPY database/ ./database/
+COPY utils/ ./utils/
 
-# Copy Alembic migrations
+# Copy Alembic configuration and migrations
 COPY migrations/ ./migrations/
 COPY alembic.ini ./
 
-# Python module discovery
+# Python module discovery and virtual environment
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app"
 
-EXPOSE 8000
+# FastAPI port
+EXPOSE 5000
 
-# Start FastAPI
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start FastAPI application
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "5000"]

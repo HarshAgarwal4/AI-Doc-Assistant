@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from sqlalchemy import engine_from_config, pool
 from sqlmodel import SQLModel
 from app.models.docModel import Document
+from app.models.llm import LLMCall
 
 load_dotenv()
 

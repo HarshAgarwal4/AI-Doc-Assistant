@@ -29,7 +29,7 @@ def retry(max_retry=3, base_delay=1):
                     logger.warning("Request timed out!")
                     last_error = e
 
-                except httpx.HTTPStatusError as e:
+                except Exception as e:
                     status_code = e.response.status_code
 
                     if status_code == 429:

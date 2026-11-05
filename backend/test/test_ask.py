@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Generator
 from unittest.mock import AsyncMock, patch
 
@@ -12,6 +13,7 @@ from app.models.docModel import Document  # noqa: F401
 from app.models.llm import LLMCall
 from database.database import get_session
 from main import app
+from utils.llm import generate
 
 # In-memory SQLite database for testing
 test_engine = create_engine(
@@ -31,11 +33,15 @@ def test_session() -> Generator[Session, None, None]:
 
 
 @pytest.fixture
-def client(test_session: Session) -> Generator[TestClient, None, None]:
+def client(
+    test_session: Session,
+    monkeypatch: pytest.MonkeyPatch,
+) -> Generator[TestClient, None, None]:
     def override_get_session():
         yield test_session
 
     app.dependency_overrides[get_session] = override_get_session
+    monkeypatch.setattr("utils.llm.engine", test_engine)
     test_client = TestClient(app)
     yield test_client
     test_client.close()
@@ -78,7 +84,10 @@ def test_ask_success(mock_get_llm, client: TestClient, test_session: Session):
     response = client.post("/ask", json=payload)
 
     assert response.status_code == 200
-    assert response.text == "Hello world!"
+    assert "event: token" in response.text
+    assert 'data: {"text": "Hello "}' in response.text
+    assert 'data: {"text": "world!"}' in response.text
+    assert "event: saved" in response.text
 
     # Verify call saved into SQLite database
     saved_calls = test_session.exec(select(LLMCall)).all()
@@ -94,12 +103,22 @@ def test_ask_success(mock_get_llm, client: TestClient, test_session: Session):
 def test_ask_rate_limit_429(mock_get_llm, mock_sleep, client: TestClient):
     payload = {"question": "Test rate limit", "provider": "Groq"}
     with pytest.raises(Exception) as exc_info:
-        client.post("/ask", json=payload)
+        try:
+            response = client.post("/ask", json=payload)
+            _ = response.text
+        except Exception:
+            raise
+        else:
+            async def run():
+                async for _ in generate(question=payload["question"], provider=payload["provider"]):
+                    pass
+            asyncio.run(run())
 
     cause = getattr(exc_info.value, "__cause__", exc_info.value)
-    assert isinstance(cause, HTTPException)
-    assert cause.status_code == 503
-    assert "LLM provider is unavailable after all retry attempts" in cause.detail
+    target = exc_info.value if isinstance(exc_info.value, HTTPException) else cause
+    assert isinstance(target, HTTPException)
+    assert target.status_code == 503
+    assert "LLM provider is unavailable after all retry attempts" in target.detail
 
 
 # 3. Test timeout handling (exhausts retries and raises 504 Gateway Timeout)
@@ -108,12 +127,22 @@ def test_ask_rate_limit_429(mock_get_llm, mock_sleep, client: TestClient):
 def test_ask_timeout(mock_get_llm, mock_sleep, client: TestClient):
     payload = {"question": "Test timeout", "provider": "Google"}
     with pytest.raises(Exception) as exc_info:
-        client.post("/ask", json=payload)
+        try:
+            response = client.post("/ask", json=payload)
+            _ = response.text
+        except Exception:
+            raise
+        else:
+            async def run():
+                async for _ in generate(question=payload["question"], provider=payload["provider"]):
+                    pass
+            asyncio.run(run())
 
     cause = getattr(exc_info.value, "__cause__", exc_info.value)
-    assert isinstance(cause, HTTPException)
-    assert cause.status_code == 504
-    assert "LLM request timed out after all retry attempts" in cause.detail
+    target = exc_info.value if isinstance(exc_info.value, HTTPException) else cause
+    assert isinstance(target, HTTPException)
+    assert target.status_code == 504
+    assert "LLM request timed out after all retry attempts" in target.detail
 
 
 # 4. Test validation error: invalid provider

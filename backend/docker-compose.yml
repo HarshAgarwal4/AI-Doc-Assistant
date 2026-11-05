@@ -1,4 +1,3 @@
-
 services:
   # PostgreSQL Database
   db:
@@ -23,6 +22,8 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: ai-doc-ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
     volumes:
       - ollama_data:/root/.ollama
     ports:
@@ -37,19 +38,21 @@ services:
       - ollama_data:/root/.ollama
     environment:
       OLLAMA_HOST: http://ollama:11434
-      OLLAMA_MODEL: llama3.2:1b
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
     depends_on:
       - ollama
     entrypoint: ["/bin/sh", "-c"]
     command:
       - |
+        echo "Waiting for Ollama server..."
         until ollama list >/dev/null 2>&1; do
-          echo "Waiting for Ollama..."
           sleep 2
         done
-        echo "Downloading model: $$OLLAMA_MODEL"
+
+        echo "Downloading Ollama model: $$OLLAMA_MODEL..."
         ollama pull "$$OLLAMA_MODEL"
-        echo "Model download completed!"
+
+        echo "Model $$OLLAMA_MODEL download completed!"
     restart: "no"
 
   # Database Migrations
@@ -79,7 +82,9 @@ services:
       - .env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      OLLAMA_HOST: http://ollama:11434
       OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
     depends_on:
       migrate:
         condition: service_completed_successfully

@@ -106,8 +106,8 @@ def test_ask_rate_limit_429(mock_get_llm, mock_sleep, client: TestClient):
         try:
             response = client.post("/ask", json=payload)
             _ = response.text
-        except Exception:
-            raise
+        except Exception:  # noqa: TRY203
+            raise           
         else:
             async def run():
                 async for _ in generate(question=payload["question"], provider=payload["provider"]):
@@ -130,7 +130,7 @@ def test_ask_timeout(mock_get_llm, mock_sleep, client: TestClient):
         try:
             response = client.post("/ask", json=payload)
             _ = response.text
-        except Exception:
+        except Exception:  # noqa: TRY203
             raise
         else:
             async def run():

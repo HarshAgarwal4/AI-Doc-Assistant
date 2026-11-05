@@ -1,7 +1,8 @@
-
 services:
+  # PostgreSQL Database
   db:
     image: postgres:16
+    container_name: ai-doc-db
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -17,10 +18,49 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # Ollama Server
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ai-doc-ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+
+  # Automatically Download Ollama Model
+  ollama-pull:
+    image: ollama/ollama:latest
+    container_name: ai-doc-ollama-pull
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+    depends_on:
+      - ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        echo "Waiting for Ollama server..."
+        until ollama list >/dev/null 2>&1; do
+          sleep 2
+        done
+
+        echo "Downloading Ollama model: $$OLLAMA_MODEL..."
+        ollama pull "$$OLLAMA_MODEL"
+
+        echo "Model $$OLLAMA_MODEL download completed!"
+    restart: "no"
+
+  # Database Migrations
   migrate:
     image: ai-doc-assistant
     build: &app-build
       context: .
+    container_name: ai-doc-migrate
     command: alembic upgrade head
     env_file:
       - .env
@@ -31,19 +71,27 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # FastAPI Application
   app:
     image: ai-doc-assistant
     build: *app-build
+    container_name: ai-doc-app
     ports:
-      - "8000:8000"
+      - "5000:5000"
     env_file:
       - .env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      OLLAMA_HOST: http://ollama:11434
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
     depends_on:
       migrate:
+        condition: service_completed_successfully
+      ollama-pull:
         condition: service_completed_successfully
     restart: unless-stopped
 
 volumes:
   postgres_data:
+  ollama_data:

@@ -171,6 +171,9 @@ def test_extract_retries_on_validation_error_and_succeeds(
     assert response.status_code == 200
     assert response.json() == sample_resume_data.model_dump()
     assert mock_structured.ainvoke.await_count == 2
+    retry_messages = mock_structured.ainvoke.call_args_list[1].args[0]
+    assert len(retry_messages) == 4
+    assert "validation error" in retry_messages[3].content.lower()
 
 
 def test_extract_fails_after_exceeding_validation_retries(client: TestClient):
@@ -239,6 +242,33 @@ def test_extract_empty_pdf_does_not_call_llm():
 
     assert response.status_code in (400, 500)
     mock_structured.ainvoke.assert_not_awaited()
+
+
+def test_extract_dict_response_success(client: TestClient):
+    pdf_bytes = make_pdf_bytes("Riya Verma\nriya@example.com\nSkills: Python")
+    mock_llm, mock_structured = make_mock_llm(
+        return_value={
+            "name": "Riya Verma",
+            "email": "riya@example.com",
+            "phone": None,
+            "skills": ["Python"],
+        }
+    )
+
+    with patch("utils.resume.llm", mock_llm):
+        response = client.post(
+            "/extract",
+            files={"file": ("riya.pdf", pdf_bytes, "application/pdf")},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "name": "Riya Verma",
+        "email": "riya@example.com",
+        "phone": None,
+        "skills": ["Python"],
+    }
+    mock_structured.ainvoke.assert_awaited_once()
 
 
 def test_extract_missing_file_returns_422(client: TestClient):

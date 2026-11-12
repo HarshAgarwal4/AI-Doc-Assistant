@@ -14,14 +14,6 @@ from utils.logger import logger
 
 load_dotenv()
 
-llm = get_llm('Groq')     # You can change the model to Ollama , Google or Mistral 
-
-llm = llm.model_copy(
-    update={
-        "temperature" : 0.1
-    }
-)
-
 async def extract_text(file: UploadFile) -> str:
     content = await file.read()
 
@@ -86,6 +78,14 @@ async def extract_resume_data(resume_text) -> ResumeData :
     """
     last_error = None
 
+    llm = get_llm('Groq')     # You can change the model to Ollama , Google or Mistral 
+
+    llm = llm.model_copy(
+        update={
+            "temperature" : 0.1
+        }
+    )
+    
     structured_llm = llm.with_structured_output(ResumeData)        
     messages = [
         SystemMessage(content=SYSTEM_PROMPT),

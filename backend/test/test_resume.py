@@ -37,6 +37,7 @@ def make_mock_llm(side_effect=None, return_value=None):
         mock_structured.ainvoke = AsyncMock(return_value=return_value)
 
     mock_llm = MagicMock()
+    mock_llm.model_copy.return_value = mock_llm
     mock_llm.with_structured_output.return_value = mock_structured
     return mock_llm, mock_structured
 
@@ -62,7 +63,7 @@ def test_extract_pdf_success(client: TestClient, sample_resume_data: ResumeData)
     )
     mock_llm, mock_structured = make_mock_llm(return_value=sample_resume_data)
 
-    with patch("utils.resume.llm", mock_llm):
+    with patch("utils.resume.get_llm", return_value=mock_llm) as mock_get_llm:
         response = client.post(
             "/extract",
             files={"file": ("resume.pdf", pdf_bytes, "application/pdf")},
@@ -75,6 +76,8 @@ def test_extract_pdf_success(client: TestClient, sample_resume_data: ResumeData)
         "phone": "91 9876543210",
         "skills": ["Python", "FastAPI", "PostgreSQL"],
     }
+    mock_get_llm.assert_called_once_with("Groq")
+    mock_llm.model_copy.assert_called_once_with(update={"temperature": 0.1})
     mock_llm.with_structured_output.assert_called_once_with(ResumeData)
     mock_structured.ainvoke.assert_awaited_once()
     sent_messages = mock_structured.ainvoke.call_args.args[0]
@@ -92,7 +95,7 @@ def test_extract_docx_success(client: TestClient, sample_resume_data: ResumeData
     )
     mock_llm, mock_structured = make_mock_llm(return_value=sample_resume_data)
 
-    with patch("utils.resume.llm", mock_llm):
+    with patch("utils.resume.get_llm", return_value=mock_llm):
         response = client.post(
             "/extract",
             files={
@@ -116,7 +119,7 @@ def test_extract_txt_success(client: TestClient, sample_resume_data: ResumeData)
     txt_bytes = b"Name: Aarav Mehta\nEmail: aarav.mehta@example.com\nSkills: Python, FastAPI"
     mock_llm, mock_structured = make_mock_llm(return_value=sample_resume_data)
 
-    with patch("utils.resume.llm", mock_llm):
+    with patch("utils.resume.get_llm", return_value=mock_llm):
         response = client.post(
             "/extract",
             files={"file": ("resume.txt", txt_bytes, "text/plain")},
@@ -132,7 +135,7 @@ def test_extract_nullable_fields_and_empty_skills(client: TestClient):
     minimal_data = ResumeData(name=None, email=None, phone=None, skills=[])
     mock_llm, _ = make_mock_llm(return_value=minimal_data)
 
-    with patch("utils.resume.llm", mock_llm):
+    with patch("utils.resume.get_llm", return_value=mock_llm):
         response = client.post(
             "/extract",
             files={"file": ("minimal.pdf", pdf_bytes, "application/pdf")},
@@ -145,6 +148,33 @@ def test_extract_nullable_fields_and_empty_skills(client: TestClient):
         "phone": None,
         "skills": [],
     }
+
+
+def test_extract_dict_response_success(client: TestClient):
+    pdf_bytes = make_pdf_bytes("Riya Verma\nriya@example.com\nSkills: Python")
+    mock_llm, mock_structured = make_mock_llm(
+        return_value={
+            "name": "Riya Verma",
+            "email": "riya@example.com",
+            "phone": None,
+            "skills": ["Python"],
+        }
+    )
+
+    with patch("utils.resume.get_llm", return_value=mock_llm):
+        response = client.post(
+            "/extract",
+            files={"file": ("riya.pdf", pdf_bytes, "application/pdf")},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "name": "Riya Verma",
+        "email": "riya@example.com",
+        "phone": None,
+        "skills": ["Python"],
+    }
+    mock_structured.ainvoke.assert_awaited_once()
 
 
 def test_extract_retries_on_validation_error_and_succeeds(
@@ -162,7 +192,7 @@ def test_extract_retries_on_validation_error_and_succeeds(
         side_effect=[invalid_dict, sample_resume_data]
     )
 
-    with patch("utils.resume.llm", mock_llm):
+    with patch("utils.resume.get_llm", return_value=mock_llm):
         response = client.post(
             "/extract",
             files={"file": ("retry.pdf", pdf_bytes, "application/pdf")},
@@ -188,7 +218,7 @@ def test_extract_fails_after_exceeding_validation_retries(client: TestClient):
         side_effect=[invalid_dict, invalid_dict]
     )
 
-    with patch("utils.resume.llm", mock_llm):
+    with patch("utils.resume.get_llm", return_value=mock_llm):
         response = client.post(
             "/extract",
             files={"file": ("bad_output.pdf", pdf_bytes, "application/pdf")},
@@ -205,7 +235,7 @@ def test_extract_llm_exception_returns_500(client: TestClient):
         side_effect=RuntimeError("Mock LLM failure")
     )
 
-    with patch("utils.resume.llm", mock_llm):
+    with patch("utils.resume.get_llm", return_value=mock_llm):
         response = client.post(
             "/extract",
             files={"file": ("resume.pdf", pdf_bytes, "application/pdf")},
@@ -219,56 +249,46 @@ def test_extract_unsupported_file_format():
     non_raising_client = TestClient(app, raise_server_exceptions=False)
     mock_llm, mock_structured = make_mock_llm()
 
-    with patch("utils.resume.llm", mock_llm):
+    with patch("utils.resume.get_llm", return_value=mock_llm) as mock_get_llm:
         response = non_raising_client.post(
             "/extract",
             files={"file": ("resume.png", b"fake-image-bytes", "image/png")},
         )
 
     assert response.status_code == 500
+    mock_get_llm.assert_not_called()
     mock_structured.ainvoke.assert_not_awaited()
 
 
-def test_extract_empty_pdf_does_not_call_llm():
+def test_extract_empty_pdf_returns_400(client: TestClient):
     empty_pdf = make_pdf_bytes("")
-    non_raising_client = TestClient(app, raise_server_exceptions=False)
     mock_llm, mock_structured = make_mock_llm()
 
-    with patch("utils.resume.llm", mock_llm):
-        response = non_raising_client.post(
+    with patch("utils.resume.get_llm", return_value=mock_llm) as mock_get_llm:
+        response = client.post(
             "/extract",
             files={"file": ("empty.pdf", empty_pdf, "application/pdf")},
         )
 
-    assert response.status_code in (400, 500)
+    assert response.status_code == 400
+    assert response.json()["detail"] == "file is empty"
+    mock_get_llm.assert_not_called()
     mock_structured.ainvoke.assert_not_awaited()
 
 
-def test_extract_dict_response_success(client: TestClient):
-    pdf_bytes = make_pdf_bytes("Riya Verma\nriya@example.com\nSkills: Python")
-    mock_llm, mock_structured = make_mock_llm(
-        return_value={
-            "name": "Riya Verma",
-            "email": "riya@example.com",
-            "phone": None,
-            "skills": ["Python"],
-        }
-    )
+def test_extract_empty_txt_returns_400(client: TestClient):
+    mock_llm, mock_structured = make_mock_llm()
 
-    with patch("utils.resume.llm", mock_llm):
+    with patch("utils.resume.get_llm", return_value=mock_llm) as mock_get_llm:
         response = client.post(
             "/extract",
-            files={"file": ("riya.pdf", pdf_bytes, "application/pdf")},
+            files={"file": ("empty.txt", b"   \n  ", "text/plain")},
         )
 
-    assert response.status_code == 200
-    assert response.json() == {
-        "name": "Riya Verma",
-        "email": "riya@example.com",
-        "phone": None,
-        "skills": ["Python"],
-    }
-    mock_structured.ainvoke.assert_awaited_once()
+    assert response.status_code == 400
+    assert response.json()["detail"] == "file is empty"
+    mock_get_llm.assert_not_called()
+    mock_structured.ainvoke.assert_not_awaited()
 
 
 def test_extract_missing_file_returns_422(client: TestClient):

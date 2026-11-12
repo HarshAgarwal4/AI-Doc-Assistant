@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pymupdf
 from docx import Document
+from dotenv import load_dotenv
 from fastapi import HTTPException, UploadFile, status
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from pydantic import ValidationError
@@ -10,6 +11,8 @@ from pydantic import ValidationError
 from app.models.resumeModel import ResumeData
 from utils.llm import get_llm
 from utils.logger import logger
+
+load_dotenv()
 
 llm = get_llm('Groq')     # You can change the model to Ollama , Google or Mistral 
 

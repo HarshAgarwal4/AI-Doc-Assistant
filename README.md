@@ -459,7 +459,74 @@ Example response:
 
 ## 📊 Resume Extraction Evaluation (`scripts/eval_extract.py`)
 
-Run the evaluation script from `backend/` while the API server is running on `http://localhost:5000`:
+Run the evaluation script from the `backend/` directory while the API server is running at `http://localhost:5000`.
+
+### 1. Groq Evaluation Results
+
+**Model:** Groq (LLM)
+
+| Metric | Result |
+|---|---:|
+| Total Resumes | 20 |
+| Valid Responses | 18 |
+| Failed Responses | 2 |
+| Correct Fields | 72 |
+| Total Fields | 72 |
+| **Field Accuracy** | **100.00%** |
+| Total API Time | 72.73 seconds |
+| Average API Time | 4.04 seconds |
+| Total Execution Time | 138.02 seconds |
+
+**Observation:**
+- Achieved 100% field accuracy across all successfully evaluated fields.
+- 2 responses failed during extraction.
+- Faster API response time compared to the local Ollama model.
+
+### 2. Ollama Evaluation Results
+
+**Model:** Llama 3.2 (3B) – Local Model
+
+| Metric | Result |
+|---|---:|
+| Total Resumes | 20 |
+| Valid Responses | 20 |
+| Failed Responses | 0 |
+| Correct Fields | 71 |
+| Total Fields | 80 |
+| **Field Accuracy** | **88.75%** |
+| Total API Time | 140.73 seconds |
+| Average API Time | 9.35 seconds |
+| Total Execution Time | 288.67 seconds |
+
+**Observation:**
+- Successfully processed all 20 resumes without any failed responses.
+- Achieved 88.75% field accuracy.
+- The smaller local model struggled with some complex resume extraction cases.
+- Slower response time compared to Groq.
+
+### 3. Model Comparison
+
+| Metric | Groq | Ollama (Llama 3.2 3B) |
+|---|---:|---:|
+| Total Resumes | 20 | 20 |
+| Valid Responses | 18 | 20 |
+| Failed Responses | 2 | 0 |
+| Correct Fields | 72 | 71 |
+| Total Fields | 72 | 80 |
+| Field Accuracy | **100.00%** | 88.75% |
+| Average API Time | **4.04 sec** | 9.35 sec |
+| Total Execution Time | **138.02 sec** | 288.67 sec |
+
+### 4. Conclusion
+
+- **Groq:** Delivered higher field accuracy and faster API responses, but encountered 2 failed responses.
+- **Ollama:** Successfully processed all resumes without failures but had lower extraction accuracy and slower execution.
+
+Groq performed better in terms of extraction accuracy and speed, whereas Ollama demonstrated better response reliability in this evaluation.
+
+**Final Verdict:** Groq is the better choice for accurate and fast resume extraction based on these results. However, Ollama remains a useful option for offline processing and privacy-sensitive applications.
+
+> **Note:** These results are based on a dataset of 20 resumes. Further evaluation with larger and more diverse datasets is recommended before drawing definitive conclusions.
 
 ```bash
 uv run python scripts/eval_extract.py

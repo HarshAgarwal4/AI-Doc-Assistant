@@ -224,7 +224,7 @@ def test_extract_fails_after_exceeding_validation_retries(client: TestClient):
             files={"file": ("bad_output.pdf", pdf_bytes, "application/pdf")},
         )
 
-    assert response.status_code == 500
+    assert response.status_code == 422
     assert "Error in Parsing Resume" in response.json()["detail"]
     assert mock_structured.ainvoke.await_count == 2
 
@@ -242,7 +242,7 @@ def test_extract_llm_exception_returns_500(client: TestClient):
         )
 
     assert response.status_code == 500
-    assert "Mock LLM failure" in response.json()["detail"]
+    assert "Internal Server Error" in response.json()["detail"]
 
 
 def test_extract_unsupported_file_format():
@@ -255,7 +255,7 @@ def test_extract_unsupported_file_format():
             files={"file": ("resume.png", b"fake-image-bytes", "image/png")},
         )
 
-    assert response.status_code == 500
+    assert response.status_code == 415
     mock_get_llm.assert_not_called()
     mock_structured.ainvoke.assert_not_awaited()
 

@@ -8,9 +8,11 @@ from sqlmodel import Session, select
 
 from app.models.docModel import Document
 from app.models.llm import LLMRequestModel
+from app.models.resumeModel import ResumeData
 from database.database import get_session
 from utils.llm import generate
 from utils.logger import logger
+from utils.resume import extract_resume_data, extract_text
 
 app = FastAPI(
     title="AI Doc Assistant",
@@ -123,7 +125,6 @@ def get_documents(
 ):
     documents = session.exec(select(Document)).all()
     return documents
-
 
 @app.get("/page", response_class=HTMLResponse)
 def get_page():
@@ -574,7 +575,6 @@ document.getElementById("question").addEventListener(
 </html>
 """)
 
-
 async def stream_response(first_chunk, generator):
 
     yield first_chunk
@@ -591,7 +591,6 @@ async def ask_llm(req: LLMRequestModel):
     )
 
     try:
-        # Execute generator until its first yield.
         first_chunk = await anext(generator)
 
     except TimeoutError:
@@ -613,3 +612,15 @@ async def ask_llm(req: LLMRequestModel):
         media_type="text/event-stream",
         status_code=200,
     )
+
+@app.post('/extract' , status_code=status.HTTP_200_OK , response_model=ResumeData)
+async def extract(file : Annotated[UploadFile , File()]):
+    content = await extract_text(file)
+    if content is None or content.strip() == '':
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail='file is empty'
+        )
+    response = await extract_resume_data(content)
+    return response
+

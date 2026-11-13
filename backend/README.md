@@ -21,6 +21,8 @@ A high-performance document management API built with **FastAPI, Pydantic v2, SQ
 - **Environment-Based Configuration:** Database credentials and connection settings are supplied through `.env`.
 - **Automated Testing:** Pytest and HTTPX/TestClient, with SQLite available for database-independent tests.
 - **Modern Python Tooling:** Dependency management and reproducible lockfiles using `uv`.
+- **Structured Resume Extraction:** `POST /extract` parses `.pdf`, `.docx`, and `.txt` resumes into a validated `ResumeData` JSON schema using LangChain's `with_structured_output` parser with validation-error retries.
+- **Automated Extraction Evaluation:** `scripts/eval_extract.py` benchmarks `POST /extract` against `resumes/` and `expected_outputs.json` and logs field-level accuracy.
 
 ## 📁 Project Structure
 
@@ -427,6 +429,53 @@ Example response:
 ```
 
 The endpoint retrieves document metadata from PostgreSQL through SQLModel.
+
+### 4. Extract Resume Data
+
+| Property | Value |
+|---|---|
+| Method | `POST` |
+| Endpoint | `/extract` |
+| Content type | `multipart/form-data` |
+| Form field | `file` |
+| Supported extensions | `.pdf`, `.docx`, `.txt` |
+| Success status | `200 OK` |
+
+How it works (`utils/resume.py` & `app/models/resumeModel.py`):
+- `extract_text` reads the uploaded file and extracts plain text via PyMuPDF (`.pdf`), `python-docx` (`.docx`), or raw bytes (`.txt`).
+- `extract_resume_data` uses `llm.with_structured_output(ResumeData)` to parse the resume into a strict Pydantic v2 schema (`name`, `email`, `phone`, `skills`) with `extra="forbid"`.
+- If `ResumeData.model_validate` raises a `ValidationError`, the error is appended to the conversation and retried with the structured LLM before returning `422 Unprocessable Content`.
+
+Example response:
+
+```json
+{
+  "name": "Aarav Mehta",
+  "email": "aarav.mehta@example.com",
+  "phone": "91 9876543210",
+  "skills": ["Python", "FastAPI", "PostgreSQL"]
+}
+```
+
+## 📊 Resume Extraction Evaluation (`scripts/eval_extract.py`)
+
+Run the evaluation script from `backend/` while the API server is running on `http://localhost:5000`:
+
+```bash
+uv run python scripts/eval_extract.py
+```
+
+- Loads test cases from `expected_outputs.json` and sends each file in `resumes/` to `POST /extract`.
+- Compares extracted `name`, `email`, `phone`, and `skills` against expected outputs and logs mismatches, errors, and final field accuracy using Python `logging`.
+
+## ⚡ Claude Prompt Caching (Quick Notes)
+
+- **What it does:** Stores reusable prompt prefixes (system instructions, tool definitions, reference docs) in memory so Claude does not reprocess them on every request.
+- **Faster & cheaper:** Cache hits cut latency (time-to-first-token) and give around a 90% input token discount (`0.1x` base input price or lower).
+- **Write vs. read pricing:** Cache writes cost `1.25x` (5-minute default TTL) or `2.0x` (1-hour TTL) of base input price, so reuse from the 2nd request onward saves money.
+- **How to enable:** Add `"cache_control": {"type": "ephemeral"}` breakpoints to static blocks in `system`, `tools`, or `messages` (requires minimum token length, typically 512+ tokens).
+- **Order matters:** Caching matches exact prefixes from top to bottom—keep static instructions/tools first and dynamic user input at the very end.
+- **Verify cache hits:** Check `response.usage` for `cache_read_input_tokens > 0` (hit) vs. `cache_creation_input_tokens > 0` (write).
 
 ## 💻 Example API Calls
 

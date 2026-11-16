@@ -321,6 +321,8 @@ def test_read_pdf_pages_generated(tmp_path):
 
 
 def test_read_docx_pages_generated(tmp_path):
+    from unittest.mock import MagicMock, patch
+
     import docx
 
     from utils.extraction import read_docx_with_docling
@@ -332,7 +334,15 @@ def test_read_docx_pages_generated(tmp_path):
     doc.add_paragraph("Dynamic DOCX page two text.")
     doc.save(str(docx_file))
 
-    pages = read_docx_with_docling(str(docx_file))
+    mock_doc = MagicMock()
+    mock_doc.pages = None
+    mock_conv = MagicMock()
+    mock_conv.convert.return_value.document = mock_doc
+    mock_module = MagicMock(DocumentConverter=MagicMock(return_value=mock_conv))
+
+    with patch.dict("sys.modules", {"docling.document_converter": mock_module}):
+        pages = read_docx_with_docling(str(docx_file))
+
     assert len(pages) == 2
     assert pages[0]["page_number"] == 1
     assert "Dynamic DOCX page one text." in pages[0]["text"]

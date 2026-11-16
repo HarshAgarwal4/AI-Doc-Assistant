@@ -13,3 +13,7 @@ wheels/
 .pytest_cache/
 .ruff_cache/
 app.log
+
+# Uploads
+uploads/
+backend/uploads/

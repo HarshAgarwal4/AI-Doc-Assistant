@@ -1,7 +1,16 @@
+import hashlib
 from pathlib import Path
 from typing import Annotated
 
-from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
+from fastapi import (
+    BackgroundTasks,
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    UploadFile,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlmodel import Session, select
@@ -12,6 +21,7 @@ from app.models.resumeModel import ResumeData
 from database.database import get_session
 from utils.llm import generate
 from utils.logger import logger
+from utils.process_doc import process_document
 from utils.resume import extract_resume_data, extract_text
 
 app = FastAPI(
@@ -34,6 +44,8 @@ app.add_middleware(
 MAX_FILE_SIZE = 10 * 1024 * 1024
 ALLOWED_FORMATS = [".pdf", ".txt", ".docx"]
 CHUNK_SIZE = 1024 * 1024
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
 
 
 @app.get("/", status_code=status.HTTP_200_OK)
@@ -54,6 +66,7 @@ def health_check():
 async def post_document(
     file: Annotated[UploadFile, File()],
     session: Annotated[Session, Depends(get_session)],
+    background_tasks : BackgroundTasks
 ):
     extension = Path(file.filename or "").suffix.lower()
     total_size = 0
@@ -72,45 +85,80 @@ async def post_document(
             detail="File size must not be greater than 10 MB",
         )
 
-    # Read file chunk by chunk and enforce size limit
-    while True:
-        chunk = await file.read(CHUNK_SIZE)
-
-        if not chunk:
-            break
-
-        total_size += len(chunk)
-
-        if total_size > MAX_FILE_SIZE:
-            raise HTTPException(
-                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail="File size must not exceed 10 MB",
-            )
-
-    # Reject empty files
-    if total_size == 0:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Empty file not allowed",
-        )
+    safe_filename = Path(file.filename or "upload.pdf").name
+    file_path = UPLOAD_DIR / safe_filename
 
     try:
+        hasher = hashlib.sha256()
+        with open(file_path, "wb") as f:  # noqa: ASYNC230
+            while True:
+                chunk = await file.read(CHUNK_SIZE)
+                if not chunk:
+                    break
+                total_size += len(chunk)
+                if total_size > MAX_FILE_SIZE:
+                    f.close()
+                    if file_path.exists():
+                        file_path.unlink()
+                    raise HTTPException(
+                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                        detail="File size must not exceed 10 MB",
+                    )
+                hasher.update(chunk)
+                f.write(chunk)
+
+        # Reject empty files
+        if total_size == 0:
+            if file_path.exists():
+                file_path.unlink()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Empty file not allowed",
+            )
+
+        file_hash = hasher.hexdigest()
+
+        # Check if file with exact same hash already exists
+        existing_document = session.exec(
+            select(Document).where(Document.file_hash == file_hash)
+        ).first()
+
+        if existing_document:
+            if file_path.exists():
+                file_path.unlink()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Document with the exact same content already exists",
+            )
+
         document = Document(
-            filename=Path(file.filename or "").name,
+            filename=safe_filename,
             content_type=file.content_type or "application/octet-stream",
             size_bytes=total_size,
+            file_hash=file_hash,
+            status="pending",
         )
 
         session.add(document)
         session.commit()
         session.refresh(document)
 
+        if extension in [".pdf", ".docx"]:
+            background_tasks.add_task(
+                process_document,
+                str(file_path),
+                document.id,
+            )
+
         return document
 
+    except HTTPException:
+        raise
     except Exception:
         session.rollback()
+        if file_path.exists():
+            file_path.unlink()
         raise
-
     finally:
         await file.close()
 

@@ -85,9 +85,11 @@ def test_document_upload(client: TestClient):
     assert data["content_type"] == "text/plain"
     assert data["size_bytes"] == 11
     assert data["uploaded_at"] is not None
+    assert data["status"] == "pending"
 
     document = Document.model_validate(data)
     assert document.filename == "hello.txt"
+    assert document.status == "pending"
 
 
 # 4. Test unsupported file format
@@ -181,3 +183,32 @@ def test_multiple_documents(client: TestClient):
         "first.txt",
         "second.txt",
     }
+
+
+# 9. Test uploading duplicate file with exact same content raises 409 Conflict
+def test_upload_duplicate_file_raises_409(client: TestClient):
+    file_payload = {
+        "file": (
+            "unique_file.txt",
+            b"Exact same content for both uploads",
+            "text/plain",
+        )
+    }
+
+    # First upload succeeds with 201 Created
+    response1 = client.post("/documents", files=file_payload)
+    assert response1.status_code == 201
+
+    # Second upload with identical content (even with a different filename) returns 409 Conflict
+    response2 = client.post(
+        "/documents",
+        files={
+            "file": (
+                "renamed_copy.txt",
+                b"Exact same content for both uploads",
+                "text/plain",
+            )
+        },
+    )
+    assert response2.status_code == 409
+    assert response2.json()["detail"] == "Document with the exact same content already exists"

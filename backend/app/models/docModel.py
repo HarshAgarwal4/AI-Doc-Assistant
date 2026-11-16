@@ -1,20 +1,13 @@
-
 from datetime import UTC, datetime
+from typing import Literal
 from uuid import UUID, uuid4
 
-from sqlalchemy import CheckConstraint, Column, DateTime, String, text
+from sqlalchemy import Column, DateTime, String, text
 from sqlmodel import Field, SQLModel
 
 
 class Document(SQLModel, table=True):
     __tablename__ = "document"
-
-    __table_args__ = (
-        CheckConstraint(
-            "status IN ('pending', 'processing', 'ready', 'failed')",
-            name="ck_document_status",
-        ),
-    )
 
     id: UUID = Field(
         default_factory=uuid4,
@@ -30,11 +23,22 @@ class Document(SQLModel, table=True):
         sa_type=DateTime(timezone=True),
     )
 
-    status: str = Field(
+    status: Literal['pending' , 'failed' , 'ready' , 'processing'] = Field(
         default="pending",
         sa_column=Column(
             String(20),
             nullable=False,
             server_default=text("'pending'"),
+            index=True
+        ),
+    )
+
+    file_hash: str | None = Field(
+        default=None,
+        sa_column=Column(
+            String(64),
+            nullable=True,
+            unique=True,
+            index=True,
         ),
     )

@@ -23,6 +23,14 @@ A high-performance document management API built with **FastAPI, Pydantic v2, SQ
 - **Modern Python Tooling:** Dependency management and reproducible lockfiles using `uv`.
 - **Structured Resume Extraction:** `POST /extract` parses `.pdf`, `.docx`, and `.txt` resumes into a validated `ResumeData` JSON schema using LangChain's `with_structured_output` parser with validation-error retries.
 - **Automated Extraction Evaluation:** `scripts/eval_extract.py` benchmarks `POST /extract` against `resumes/` and `expected_outputs.json` and logs field-level accuracy.
+- **Background Ingestion & pgvector Storage (Assignment 9):**
+  - **Non-blocking Uploads:** `POST /documents` returns `201 Created` with `status: "pending"` immediately; parsing and vectorization run asynchronously via FastAPI `BackgroundTasks`.
+  - **Page-by-Page Extraction:** PyMuPDF (`fitz`) for fast `.pdf` extraction and Docling for `.docx` files.
+  - **Chunking with Metadata:** Splits text into ~800-character chunks with 100-character overlap, preserving `text`, `filename`, and 1-indexed `page_number`.
+  - **Local Vector Embeddings:** 768-dimensional embeddings powered by Ollama (`nomic-embed-text`).
+  - **pgvector Vector Database:** Stores vectors in a dedicated `Chunk` table using PostgreSQL's `vector(768)` type.
+  - **Batch Ingestion:** Chunks are saved in bulk via `session.add_all()`.
+  - **Fail-Safe Lifecycle:** Tracks document status (`pending` -> `processing` -> `ready`). Broken or empty documents transition to `failed` and log errors without crashing the API.
 
 ## 📁 Project Structure
 
@@ -43,21 +51,33 @@ AI Doc Assistant/
     ├── main.py
     ├── app/
     │   └── models/
-    │       └── docModel.py
+    │       ├── docModel.py
+    │       ├── chunkModel.py
+    │       ├── resumeModel.py
+    │       └── llm.py
     ├── database/
     │   └── database.py
+    ├── utils/
+    │   ├── chunking.py
+    │   ├── embedding.py
+    │   ├── extraction.py
+    │   ├── process_doc.py
+    │   ├── logger.py
+    │   ├── llm.py
+    │   └── resume.py
     ├── migrations/
     │   ├── versions/
-    │   │   ├── 311e68bff81f_tables_initialised.py
-    │   │   └── b799f7514e3b_tables_updated.py
+    │   │   ├── ...
+    │   │   └── 975d7559b56d_added_chunk_table.py
     │   ├── env.py
     │   ├── script.py.mako
     │   └── README
     ├── test/
-    │   └── test_db.py
-    └── src/
-        └── backend/
-            └── __init__.py
+    │   ├── test_db.py
+    │   ├── test_ingestion.py
+    │   ├── test_ask.py
+    │   └── test_resume.py
+    └── uploads/
 ```
 
 The structure above represents the intended layout. Keep your existing filenames if they differ, and adjust the imports and Dockerfile paths accordingly.
@@ -503,6 +523,45 @@ curl -X GET "http://localhost:8000/documents" \
   -H "accept: application/json"
 ```
 
+## 🚀 Assignment 9: Background Ingestion – PDF to pgvector
+
+When a PDF or DOCX file is uploaded, it is automatically converted into searchable vector embeddings without blocking the client.
+
+### Ingestion Workflow
+1. **Save File**: The file is streamed to the `uploads/` directory (mounted as a Docker volume and ignored by git).
+2. **Immediate 201 Response**: `POST /documents` returns HTTP `201 Created` with `status: "pending"` right away.
+3. **Background Task**: FastAPI `BackgroundTasks` calls `process_document`:
+   - Updates document status to `processing`.
+   - Extracts text page by page (PyMuPDF for `.pdf`, Docling for `.docx`).
+   - Splits text into chunks of ~800 characters with 100-character overlap, preserving `text`, `filename`, and `page_number`.
+   - Generates 768-dimensional embeddings via local Ollama (`nomic-embed-text`).
+   - Bulk inserts all chunks into PostgreSQL `chunk` table with `pgvector` (`session.add_all()`).
+   - Sets document status to `ready`.
+4. **Error Handling**: Corrupted or empty files update status to `failed` and log errors without crashing the API.
+
+### Test Endpoints with curl
+
+**Upload a PDF (returns 201 immediately):**
+```bash
+curl -X POST "http://localhost:5000/documents" \
+  -F "file=@uploads/sample.pdf"
+```
+
+**List documents and check processing status:**
+```bash
+curl -X GET "http://localhost:5000/documents"
+```
+
+### Running Tests
+
+```bash
+# Run unit tests for ingestion, chunking, and error handling
+uv run pytest test/test_ingestion.py -v
+
+# Run database tests
+uv run pytest test/test_db.py -v
+```
+
 ## 📦 Managing Dependencies with uv
 
 | Action | Command |
@@ -517,22 +576,19 @@ curl -X GET "http://localhost:8000/documents" \
 | Update the lockfile | `uv lock` |
 | Upgrade dependencies | `uv lock --upgrade` |
 | Run a Python command | `uv run python <file.py>` |
-| Run tests | `uv run python -m pytest Tests/ -v` |
+| Run ingestion tests | `uv run pytest test/test_ingestion.py -v` |
+| Run all tests | `uv run pytest -v` |
 
 ## 🔄 Git Workflow & Pull Request
 
-Before submitting Assignment 4:
+Before submitting:
 
-1. Implement SQLModel and PostgreSQL integration.
-2. Add the Dockerfile and `docker-compose.yml`.
-3. Add `.env.example` and update `.gitignore`.
-4. Verify that `docker compose up --build` starts the application and database.
-5. Verify that document records persist after `docker compose down` and `docker compose up --build`.
-6. Run the existing test suite and fix any regressions.
-7. Push your changes to the appropriate feature branch.
-8. Open a pull request.
-9. Ask your partner to review the changes and address feedback.
-10. Merge the pull request after approval, following the team's branch policy.
+1. Implement SQLModel and PostgreSQL pgvector integration.
+2. Verify Dockerfile, `docker-compose.yml`, and `uploads/` volume mounting.
+3. Verify that `docker compose up --build` starts the application, database, and Ollama model downloads.
+4. Verify migrations apply cleanly with `uv run alembic upgrade head`.
+5. Run the test suite: `uv run pytest test/test_ingestion.py -v`.
+6. Push changes to the feature branch and open a pull request.
 
 Never commit actual database passwords or other secrets.
 
@@ -542,12 +598,14 @@ Never commit actual database passwords or other secrets.
 - [x] Document metadata persistence.
 - [x] Dockerfile and Docker Compose configuration.
 - [x] Persistent PostgreSQL storage using a named volume.
-- [ ] PDF, TXT, and DOCX text extraction.
-- [ ] Document chunking and vector embedding generation.
-- [ ] Vector database integration with ChromaDB, Qdrant, or Pinecone.
+- [x] Database migrations with Alembic (`uv run alembic upgrade head`).
+- [x] PDF and DOCX text extraction (PyMuPDF & Docling).
+- [x] Document chunking preserving page numbers and filenames.
+- [x] Vector embedding generation with Ollama (`nomic-embed-text`).
+- [x] Vector database integration with PostgreSQL `pgvector` (`Chunk` table).
+- [x] Asynchronous background ingestion with FastAPI `BackgroundTasks`.
 - [ ] Retrieval-Augmented Generation (RAG) question-answering endpoint.
 - [ ] Authentication and authorization.
-- [x] Database migrations with Alembic (`uv run alembic upgrade head`).
 - [ ] Production deployment.
 
 ## 📄 License

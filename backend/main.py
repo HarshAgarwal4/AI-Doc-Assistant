@@ -124,11 +124,12 @@ async def post_document(
         session.commit()
         session.refresh(document)
 
-        background_tasks.add_task(
-            process_document,
-            str(file_path),
-            document.id,
-        )
+        if extension in [".pdf", ".docx"]:
+            background_tasks.add_task(
+                process_document,
+                str(file_path),
+                document.id,
+            )
 
         return document
 

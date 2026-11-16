@@ -1,4 +1,3 @@
-import os
 from unittest.mock import patch
 from uuid import uuid4
 
@@ -108,7 +107,7 @@ def test_process_document_success(session: Session):
 
     with (
         patch("utils.process_doc.engine", test_engine),
-        patch("utils.process_doc.read_pdf_pages", return_value=mock_pages),
+        patch("utils.process_doc.read_document_pages", return_value=mock_pages),
         patch("utils.process_doc.generate_embedding", return_value=mock_embedding),
     ):
         process_document("dummy_path.pdf", doc.id)
@@ -145,7 +144,7 @@ def test_process_document_broken_pdf(session: Session):
     # Simulate broken PDF where extraction returns empty or raises an exception
     with (
         patch("utils.process_doc.engine", test_engine),
-        patch("utils.process_doc.read_pdf_pages", side_effect=Exception("Corrupted PDF file")),
+        patch("utils.process_doc.read_document_pages", side_effect=Exception("Corrupted PDF file")),
     ):
         process_document("broken_path.pdf", doc.id)
 
@@ -168,7 +167,7 @@ def test_process_document_empty_pdf(session: Session):
     # PDF with no text
     with (
         patch("utils.process_doc.engine", test_engine),
-        patch("utils.process_doc.read_pdf_pages", return_value=[]),
+        patch("utils.process_doc.read_document_pages", return_value=[]),
     ):
         process_document("empty_path.pdf", doc.id)
 
@@ -184,12 +183,62 @@ def test_process_document_nonexistent_id(session: Session):
 
 
 # -------------------------------------------------------------
-# 3. Extraction Test on Real PDF (if sample file exists)
+# 3. Dynamic Extraction Tests (Zero static sample files needed)
 # -------------------------------------------------------------
-def test_read_pdf_pages_with_existing_file():
-    sample_pdf = os.path.join("uploads", "Resume_Eng_Mgr_Chad_Norwood.2025-6-25.pdf")
-    if os.path.exists(sample_pdf):
-        pages = read_pdf_pages(sample_pdf)
-        assert len(pages) > 0
-        assert pages[0]["page_number"] == 1
-        assert len(pages[0]["text"]) > 0
+def test_read_pdf_pages_generated(tmp_path):
+    import pymupdf
+
+    pdf_file = tmp_path / "dynamic_test.pdf"
+    doc = pymupdf.open()
+    p1 = doc.new_page()
+    p1.insert_text((50, 50), "First page sample text.")
+    p2 = doc.new_page()
+    p2.insert_text((50, 50), "Second page sample text.")
+    doc.save(str(pdf_file))
+    doc.close()
+
+    pages = read_pdf_pages(str(pdf_file))
+    assert len(pages) == 2
+    assert pages[0]["page_number"] == 1
+    assert "First page sample text." in pages[0]["text"]
+    assert pages[1]["page_number"] == 2
+    assert "Second page sample text." in pages[1]["text"]
+
+
+def test_read_docx_pages_generated(tmp_path):
+    import docx
+
+    from utils.extraction import read_docx_with_docling
+
+    docx_file = tmp_path / "dynamic_test.docx"
+    doc = docx.Document()
+    doc.add_paragraph("Dynamic DOCX page one text.")
+    doc.add_page_break()
+    doc.add_paragraph("Dynamic DOCX page two text.")
+    doc.save(str(docx_file))
+
+    pages = read_docx_with_docling(str(docx_file))
+    assert len(pages) == 2
+    assert pages[0]["page_number"] == 1
+    assert "Dynamic DOCX page one text." in pages[0]["text"]
+    assert pages[1]["page_number"] == 2
+    assert "Dynamic DOCX page two text." in pages[1]["text"]
+
+
+def test_read_document_pages_routing(tmp_path):
+    from utils.extraction import read_document_pages
+
+    pdf_path = str(tmp_path / "doc.pdf")
+    docx_path = str(tmp_path / "doc.docx")
+
+    with (
+        patch("utils.extraction.read_pdf_pages", return_value=[{"page_number": 1, "text": "pdf_text"}]) as mock_pdf,
+        patch("utils.extraction.read_docx_with_docling", return_value=[{"page_number": 1, "text": "docx_text"}]) as mock_docx,
+    ):
+        res_pdf = read_document_pages(pdf_path)
+        assert res_pdf == [{"page_number": 1, "text": "pdf_text"}]
+        mock_pdf.assert_called_once_with(pdf_path)
+
+        res_docx = read_document_pages(docx_path)
+        assert res_docx == [{"page_number": 1, "text": "docx_text"}]
+        mock_docx.assert_called_once_with(docx_path)

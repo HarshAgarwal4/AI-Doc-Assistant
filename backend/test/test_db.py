@@ -85,9 +85,11 @@ def test_document_upload(client: TestClient):
     assert data["content_type"] == "text/plain"
     assert data["size_bytes"] == 11
     assert data["uploaded_at"] is not None
+    assert data["status"] == "pending"
 
     document = Document.model_validate(data)
     assert document.filename == "hello.txt"
+    assert document.status == "pending"
 
 
 # 4. Test unsupported file format

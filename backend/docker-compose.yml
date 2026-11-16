@@ -1,18 +1,20 @@
 services:
-  # PostgreSQL Database
+  # PostgreSQL Database with pgvector
   db:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     container_name: ai-doc-db
     environment:
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-admin}
+      POSTGRES_DB: ${POSTGRES_DB:-ai_doc_assistant}
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
     healthcheck:
       test:
         - CMD-SHELL
-        - pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"
+        - pg_isready -U "$${POSTGRES_USER:-postgres}" -d "$${POSTGRES_DB:-ai_doc_assistant}"
       interval: 5s
       timeout: 5s
       retries: 10
@@ -30,7 +32,7 @@ services:
       - "11434:11434"
     restart: unless-stopped
 
-  # Automatically Download Ollama Model
+  # Automatically Download Ollama Models (nomic-embed-text for embeddings + LLM)
   ollama-pull:
     image: ollama/ollama:latest
     container_name: ai-doc-ollama-pull
@@ -39,6 +41,7 @@ services:
     environment:
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
+      EMBEDDING_MODEL: "nomic-embed-text"
     depends_on:
       - ollama
     entrypoint: ["/bin/sh", "-c"]
@@ -49,10 +52,13 @@ services:
           sleep 2
         done
 
-        echo "Downloading Ollama model: $$OLLAMA_MODEL..."
+        echo "Downloading embedding model: $$EMBEDDING_MODEL..."
+        ollama pull "$$EMBEDDING_MODEL"
+
+        echo "Downloading LLM model: $$OLLAMA_MODEL..."
         ollama pull "$$OLLAMA_MODEL"
 
-        echo "Model $$OLLAMA_MODEL download completed!"
+        echo "All required models download completed!"
     restart: "no"
 
   # Database Migrations
@@ -63,9 +69,10 @@ services:
     container_name: ai-doc-migrate
     command: alembic upgrade head
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-admin}@db:5432/${POSTGRES_DB:-ai_doc_assistant}
     depends_on:
       db:
         condition: service_healthy
@@ -78,10 +85,13 @@ services:
     container_name: ai-doc-app
     ports:
       - "5000:5000"
+    volumes:
+      - uploads_data:/app/uploads
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-admin}@db:5432/${POSTGRES_DB:-ai_doc_assistant}
       OLLAMA_HOST: http://ollama:11434
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2:1b}
@@ -95,3 +105,4 @@ services:
 volumes:
   postgres_data:
   ollama_data:
+  uploads_data:

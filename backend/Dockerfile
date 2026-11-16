@@ -28,6 +28,9 @@ COPY utils/ ./utils/
 COPY migrations/ ./migrations/
 COPY alembic.ini ./
 
+# Create runtime directories
+RUN mkdir -p /app/uploads /app/logs
+
 # Python module discovery and virtual environment
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONPATH="/app"

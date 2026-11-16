@@ -1,17 +1,39 @@
+import hashlib
+from pathlib import Path
 from uuid import UUID
 
-from sqlmodel import Session
+from sqlmodel import Session, delete, select
 
 from app.models.chunkModel import Chunk
 from app.models.docModel import Document
 from database.database import engine
 from utils.chunking import chunk_page_data
-from utils.embedding import generate_embedding
+from utils.embedding import generate_embeddings
 from utils.extraction import read_document_pages
 from utils.logger import logger
 
 
+def compute_file_hash(file_path: str) -> str | None:
+    if not Path(file_path).exists():
+        return None
+    hasher = hashlib.sha256()
+    with open(file_path, "rb") as f:
+        while chunk := f.read(65536):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
 def process_document(file_path: str, document_id: UUID | str):
+    """
+    Process document in background:
+    1. Compute file_hash and prevent duplicate processing if unchanged and ready
+    2. Remove old chunks for this document to prevent duplicate accumulation
+    3. Extract text (PyMuPDF for PDF, Docling for DOCX)
+    4. Split pages into chunks
+    5. Generate embeddings in batch using generate_embeddings
+    6. Store all chunks at once in the database
+    7. If processing fails, purge chunks so failed document has no orphan chunks
+    """
     try:
         doc_uuid = UUID(str(document_id))
 
@@ -22,6 +44,20 @@ def process_document(file_path: str, document_id: UUID | str):
                 return
 
             try:
+                # Compute file hash
+                current_hash = compute_file_hash(file_path) or document.file_hash
+
+                # If already processed with same hash and ready with chunks, skip duplicate processing
+                if document.file_hash == current_hash and document.status == "ready" and current_hash is not None:
+                    existing_chunk = session.exec(select(Chunk).where(Chunk.document_id == document.id)).first()
+                    if existing_chunk:
+                        logger.info(f"Document {document.filename} already processed with hash {current_hash}. Skipping.")
+                        return
+
+                # Purge any old chunks to prevent duplicates during reprocessing
+                session.exec(delete(Chunk).where(Chunk.document_id == document.id))
+
+                document.file_hash = current_hash
                 document.status = "processing"
                 session.add(document)
                 session.commit()
@@ -34,23 +70,26 @@ def process_document(file_path: str, document_id: UUID | str):
                 if not chunks_data:
                     raise ValueError("No text found in document.")
 
-                # 3. Generate embedding for each chunk individually
-                chunks = []
-                for c in chunks_data:
-                    embedding = generate_embedding(c["text"])
-                    chunk = Chunk(
+                # 3. Generate embeddings in batch
+                texts = [c["text"] for c in chunks_data]
+                embeddings = generate_embeddings(texts)
+
+                # 4. Construct Chunk instances
+                chunks = [
+                    Chunk(
                         document_id=document.id,
                         text=c["text"],
                         filename=c["filename"],
                         page_number=c["page_number"],
-                        embedding=embedding,
+                        embedding=emb,
                     )
-                    chunks.append(chunk)
+                    for c, emb in zip(chunks_data, embeddings, strict=False)
+                ]
 
-                # 4. Store all chunks at once in the database
+                # 5. Store all chunks at once in the database
                 session.add_all(chunks)
 
-                # 5. Mark document as ready
+                # 6. Mark document as ready
                 document.status = "ready"
                 session.add(document)
                 session.commit()
@@ -60,6 +99,8 @@ def process_document(file_path: str, document_id: UUID | str):
             except Exception as e:  # noqa: BLE001
                 logger.error(f"Processing failed for {document.filename}: {e}")
                 session.rollback()
+                # Purge chunks so failed document never keeps old/orphan chunks
+                session.exec(delete(Chunk).where(Chunk.document_id == document.id))
                 document.status = "failed"
                 session.add(document)
                 session.commit()

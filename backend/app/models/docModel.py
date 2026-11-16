@@ -32,3 +32,13 @@ class Document(SQLModel, table=True):
             index=True
         ),
     )
+
+    file_hash: str | None = Field(
+        default=None,
+        sa_column=Column(
+            String(64),
+            nullable=True,
+            unique=True,
+            index=True,
+        ),
+    )

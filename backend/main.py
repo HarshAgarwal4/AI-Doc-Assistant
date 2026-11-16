@@ -1,3 +1,4 @@
+import hashlib
 from pathlib import Path
 from typing import Annotated
 
@@ -88,6 +89,7 @@ async def post_document(
     file_path = UPLOAD_DIR / safe_filename
 
     try:
+        hasher = hashlib.sha256()
         with open(file_path, "wb") as f:  # noqa: ASYNC230
             while True:
                 chunk = await file.read(CHUNK_SIZE)
@@ -102,6 +104,7 @@ async def post_document(
                         status_code=status.HTTP_413_CONTENT_TOO_LARGE,
                         detail="File size must not exceed 10 MB",
                     )
+                hasher.update(chunk)
                 f.write(chunk)
 
         # Reject empty files
@@ -113,10 +116,26 @@ async def post_document(
                 detail="Empty file not allowed",
             )
 
+        file_hash = hasher.hexdigest()
+
+        # Check if file with exact same hash already exists
+        existing_document = session.exec(
+            select(Document).where(Document.file_hash == file_hash)
+        ).first()
+
+        if existing_document:
+            if file_path.exists():
+                file_path.unlink()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Document with the exact same content already exists",
+            )
+
         document = Document(
             filename=safe_filename,
             content_type=file.content_type or "application/octet-stream",
             size_bytes=total_size,
+            file_hash=file_hash,
             status="pending",
         )
 

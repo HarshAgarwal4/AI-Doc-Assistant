@@ -104,13 +104,18 @@ def test_process_document_success(session: Session):
         {"page_number": 2, "text": "Page 2 test content with additional details."},
     ]
     mock_embedding = [0.05] * 768
+    mock_embeddings = [mock_embedding, mock_embedding]
 
     with (
         patch("utils.process_doc.engine", test_engine),
         patch("utils.process_doc.read_document_pages", return_value=mock_pages),
-        patch("utils.process_doc.generate_embedding", return_value=mock_embedding),
+        patch("utils.process_doc.generate_embeddings", return_value=mock_embeddings) as mock_embed,
     ):
         process_document("dummy_path.pdf", doc.id)
+        mock_embed.assert_called_once_with([
+            "Page 1 test content for vector database.",
+            "Page 2 test content with additional details.",
+        ])
 
     # Verify status changed to ready
     session.refresh(doc)
@@ -180,6 +185,116 @@ def test_process_document_nonexistent_id(session: Session):
     random_id = uuid4()
     with patch("utils.process_doc.engine", test_engine):
         process_document("some_file.pdf", random_id)
+
+
+def test_process_document_reprocessing_clears_old_chunks(session: Session):
+    doc = Document(
+        filename="reprocess.pdf",
+        content_type="application/pdf",
+        size_bytes=500,
+        status="ready",
+        file_hash="old_hash_111",
+    )
+    session.add(doc)
+    session.commit()
+    session.refresh(doc)
+
+    # Add old chunks
+    old_chunks = [
+        Chunk(document_id=doc.id, text="Old chunk 1", filename="reprocess.pdf", page_number=1, embedding=[0.1] * 768),
+        Chunk(document_id=doc.id, text="Old chunk 2", filename="reprocess.pdf", page_number=1, embedding=[0.2] * 768),
+    ]
+    session.add_all(old_chunks)
+    session.commit()
+
+    assert len(session.exec(select(Chunk).where(Chunk.document_id == doc.id)).all()) == 2
+
+    # Reprocess with changed hash / new content
+    new_pages = [{"page_number": 1, "text": "Brand new reprocessed content."}]
+    new_embedding = [0.9] * 768
+
+    with (
+        patch("utils.process_doc.engine", test_engine),
+        patch("utils.process_doc.compute_file_hash", return_value="new_hash_222"),
+        patch("utils.process_doc.read_document_pages", return_value=new_pages),
+        patch("utils.process_doc.generate_embeddings", return_value=[new_embedding]),
+    ):
+        process_document("reprocess.pdf", doc.id)
+
+    session.refresh(doc)
+    assert doc.status == "ready"
+    assert doc.file_hash == "new_hash_222"
+
+    chunks = session.exec(select(Chunk).where(Chunk.document_id == doc.id)).all()
+    # Ensure old chunks were deleted and only the new 1 chunk exists (no duplicates accumulated!)
+    assert len(chunks) == 1
+    assert chunks[0].text == "Brand new reprocessed content."
+
+
+def test_process_document_reprocessing_failure_purges_chunks(session: Session):
+    doc = Document(
+        filename="fail_reprocess.pdf",
+        content_type="application/pdf",
+        size_bytes=500,
+        status="ready",
+        file_hash="valid_hash_111",
+    )
+    session.add(doc)
+    session.commit()
+    session.refresh(doc)
+
+    # Add old chunks
+    old_chunks = [
+        Chunk(document_id=doc.id, text="Old chunk 1", filename="fail_reprocess.pdf", page_number=1, embedding=[0.1] * 768),
+    ]
+    session.add_all(old_chunks)
+    session.commit()
+
+    # Reprocess encounters an error during extraction
+    with (
+        patch("utils.process_doc.engine", test_engine),
+        patch("utils.process_doc.compute_file_hash", return_value="diff_hash_333"),
+        patch("utils.process_doc.read_document_pages", side_effect=RuntimeError("Extraction crashed")),
+    ):
+        process_document("fail_reprocess.pdf", doc.id)
+
+    session.refresh(doc)
+    assert doc.status == "failed"
+
+    # Crucial assertion: Old chunks MUST be purged, not left behind in the database
+    chunks = session.exec(select(Chunk).where(Chunk.document_id == doc.id)).all()
+    assert len(chunks) == 0
+
+
+def test_process_document_skip_duplicate_hash(session: Session):
+    doc = Document(
+        filename="duplicate.pdf",
+        content_type="application/pdf",
+        size_bytes=500,
+        status="ready",
+        file_hash="same_hash_444",
+    )
+    session.add(doc)
+    session.commit()
+    session.refresh(doc)
+
+    chunk = Chunk(document_id=doc.id, text="Existing chunk", filename="duplicate.pdf", page_number=1, embedding=[0.5] * 768)
+    session.add(chunk)
+    session.commit()
+
+    with (
+        patch("utils.process_doc.engine", test_engine),
+        patch("utils.process_doc.compute_file_hash", return_value="same_hash_444"),
+        patch("utils.process_doc.read_document_pages") as mock_extract,
+    ):
+        process_document("duplicate.pdf", doc.id)
+        # Should have skipped re-extraction since hash matches and document is already ready
+        mock_extract.assert_not_called()
+
+    session.refresh(doc)
+    assert doc.status == "ready"
+    chunks = session.exec(select(Chunk).where(Chunk.document_id == doc.id)).all()
+    assert len(chunks) == 1
 
 
 # -------------------------------------------------------------

@@ -457,6 +457,8 @@ async function askQuestion() {
 
         <p><strong>Question:</strong> ${escapeHTML(question)}</p>
         <p class="meta">Provider: ${escapeHTML(provider)}</p>
+        <p class="doc-files" style="font-size: 13px; color: #4b5563; margin: 4px 0;"></p>
+        <p class="doc-pages" style="font-size: 13px; color: #4b5563; margin: 4px 0;"></p>
 
         <div class="output"></div>
 
@@ -473,6 +475,8 @@ async function askQuestion() {
     const output = card.querySelector(".output");
     const cancelButton = card.querySelector(".cancel-btn");
     const meta = card.querySelectorAll(".meta")[1];
+    const docFiles = card.querySelector(".doc-files");
+    const docPages = card.querySelector(".doc-pages");
 
     let reader = null;
     let saved = false;
@@ -531,6 +535,18 @@ async function askQuestion() {
 
                 output.textContent += data.text || "";
                 output.scrollTop = output.scrollHeight;
+            }
+
+            else if (event === "pages") {
+                const pages = Array.isArray(data) ? data : (data.pages || data.page || []);
+                const pageList = Array.isArray(pages) ? [...new Set(pages)].filter(x => x !== null && x !== undefined).join(", ") : pages;
+                docPages.innerHTML = `<strong>Pages:</strong> ${escapeHTML(pageList || "None")}`;
+            }
+
+            else if (event === "filename") {
+                const files = Array.isArray(data) ? data : (data.filename || data.filenames || data.files || []);
+                const fileList = Array.isArray(files) ? [...new Set(files)].filter(Boolean).join(", ") : files;
+                docFiles.innerHTML = `<strong>Filename:</strong> ${escapeHTML(fileList || "None")}`;
             }
 
             else if (event === "saved") {

@@ -21,6 +21,20 @@ A high-performance document management API built with **FastAPI, Pydantic v2, SQ
 - **Environment-Based Configuration:** Database credentials and connection settings are supplied through `.env`.
 - **Automated Testing:** Pytest and HTTPX/TestClient, with SQLite available for database-independent tests.
 - **Modern Python Tooling:** Dependency management and reproducible lockfiles using `uv`.
+- **Structured Resume Extraction:** `POST /extract` parses `.pdf`, `.docx`, and `.txt` resumes into a validated `ResumeData` JSON schema using LangChain's `with_structured_output` parser with validation-error retries.
+- **Automated Extraction Evaluation:** `scripts/eval_extract.py` benchmarks `POST /extract` against `resumes/` and `expected_outputs.json` and logs field-level accuracy.
+- **Background Ingestion & pgvector Storage (Assignment 9):**
+  - **Non-blocking Uploads:** `POST /documents` returns `201 Created` with `status: "pending"` immediately; parsing and vectorization run asynchronously via FastAPI `BackgroundTasks`.
+  - **Page-by-Page Extraction:** PyMuPDF (`fitz`) for fast `.pdf` extraction and Docling for `.docx` files.
+  - **Chunking with Metadata:** Splits text into ~800-character chunks with 100-character overlap, preserving `text`, `filename`, and 1-indexed `page_number`.
+  - **Local Vector Embeddings:** 768-dimensional embeddings powered by Ollama (`nomic-embed-text`).
+  - **pgvector Vector Database:** Stores vectors in a dedicated `Chunk` table using PostgreSQL's `vector(768)` type.
+  - **Batch Ingestion:** Chunks are saved in bulk via `session.add_all()`.
+  - **Fail-Safe Lifecycle:** Tracks document status (`pending` -> `processing` -> `ready`). Broken or empty documents transition to `failed` and log errors without crashing the API.
+- **Vector Similarity Search (Assignment 10 / Retriever):**
+  - **Semantic Retrieval:** `GET /search?q=...&k=5` embeds queries using the same `nomic-embed-text` model and searches indexed chunks via PostgreSQL `pgvector` cosine distance (`<=>`).
+  - **Ranked Results:** Returns top-`k` matching chunks with `text`, `filename`, 1-indexed `page`, and similarity `score` (`1 - distance`).
+  - **Ready Filter:** Queries only chunks from fully processed (`ready`) documents.
 
 ## 📁 Project Structure
 
@@ -41,21 +55,35 @@ AI Doc Assistant/
     ├── main.py
     ├── app/
     │   └── models/
-    │       └── docModel.py
+    │       ├── docModel.py
+    │       ├── chunkModel.py
+    │       ├── resumeModel.py
+    │       └── llm.py
     ├── database/
     │   └── database.py
+    ├── utils/
+    │   ├── chunking.py
+    │   ├── embedding.py
+    │   ├── extraction.py
+    │   ├── process_doc.py
+    │   ├── retriever.py
+    │   ├── logger.py
+    │   ├── llm.py
+    │   └── resume.py
     ├── migrations/
     │   ├── versions/
-    │   │   ├── 311e68bff81f_tables_initialised.py
-    │   │   └── b799f7514e3b_tables_updated.py
+    │   │   ├── ...
+    │   │   └── 975d7559b56d_added_chunk_table.py
     │   ├── env.py
     │   ├── script.py.mako
     │   └── README
     ├── test/
-    │   └── test_db.py
-    └── src/
-        └── backend/
-            └── __init__.py
+    │   ├── test_db.py
+    │   ├── test_ingestion.py
+    │   ├── test_retriever.py
+    │   ├── test_ask.py
+    │   └── test_resume.py
+    └── uploads/
 ```
 
 The structure above represents the intended layout. Keep your existing filenames if they differ, and adjust the imports and Dockerfile paths accordingly.
@@ -428,6 +456,120 @@ Example response:
 
 The endpoint retrieves document metadata from PostgreSQL through SQLModel.
 
+### 4. Extract Resume Data
+
+| Property | Value |
+|---|---|
+| Method | `POST` |
+| Endpoint | `/extract` |
+| Content type | `multipart/form-data` |
+| Form field | `file` |
+| Supported extensions | `.pdf`, `.docx`, `.txt` |
+| Success status | `200 OK` |
+
+How it works (`utils/resume.py` & `app/models/resumeModel.py`):
+- `extract_text` reads the uploaded file and extracts plain text via PyMuPDF (`.pdf`), `python-docx` (`.docx`), or raw bytes (`.txt`).
+- `extract_resume_data` uses `llm.with_structured_output(ResumeData)` to parse the resume into a strict Pydantic v2 schema (`name`, `email`, `phone`, `skills`) with `extra="forbid"`.
+- If `ResumeData.model_validate` raises a `ValidationError`, the error is appended to the conversation and retried with the structured LLM before returning `422 Unprocessable Content`.
+
+Example response:
+
+```json
+{
+  "name": "Aarav Mehta",
+  "email": "aarav.mehta@example.com",
+  "phone": "91 9876543210",
+  "skills": ["Python", "FastAPI", "PostgreSQL"]
+}
+```
+
+## 📊 Resume Extraction Evaluation (`scripts/eval_extract.py`)
+
+Run the evaluation script from the `backend/` directory while the API server is running at `http://localhost:5000`.
+
+### 1. Groq Evaluation Results
+
+**Model:** Groq (LLM)
+
+| Metric | Result |
+|---|---:|
+| Total Resumes | 20 |
+| Valid Responses | 18 |
+| Failed Responses | 2 |
+| Correct Fields | 72 |
+| Total Fields | 72 |
+| **Field Accuracy** | **100.00%** |
+| Total API Time | 72.73 seconds |
+| Average API Time | 4.04 seconds |
+| Total Execution Time | 138.02 seconds |
+
+**Observation:**
+- Achieved 100% field accuracy across all successfully evaluated fields.
+- 2 responses failed during extraction.
+- Faster API response time compared to the local Ollama model.
+
+### 2. Ollama Evaluation Results
+
+**Model:** Llama 3.2 (3B) – Local Model
+
+| Metric | Result |
+|---|---:|
+| Total Resumes | 20 |
+| Valid Responses | 20 |
+| Failed Responses | 0 |
+| Correct Fields | 71 |
+| Total Fields | 80 |
+| **Field Accuracy** | **88.75%** |
+| Total API Time | 140.73 seconds |
+| Average API Time | 9.35 seconds |
+| Total Execution Time | 288.67 seconds |
+
+**Observation:**
+- Successfully processed all 20 resumes without any failed responses.
+- Achieved 88.75% field accuracy.
+- The smaller local model struggled with some complex resume extraction cases.
+- Slower response time compared to Groq.
+
+### 3. Model Comparison
+
+| Metric | Groq | Ollama (Llama 3.2 3B) |
+|---|---:|---:|
+| Total Resumes | 20 | 20 |
+| Valid Responses | 18 | 20 |
+| Failed Responses | 2 | 0 |
+| Correct Fields | 72 | 71 |
+| Total Fields | 72 | 80 |
+| Field Accuracy | **100.00%** | 88.75% |
+| Average API Time | **4.04 sec** | 9.35 sec |
+| Total Execution Time | **138.02 sec** | 288.67 sec |
+
+### 4. Conclusion
+
+- **Groq:** Delivered higher field accuracy and faster API responses, but encountered 2 failed responses.
+- **Ollama:** Successfully processed all resumes without failures but had lower extraction accuracy and slower execution.
+
+Groq performed better in terms of extraction accuracy and speed, whereas Ollama demonstrated better response reliability in this evaluation.
+
+**Final Verdict:** Groq is the better choice for accurate and fast resume extraction based on these results. However, Ollama remains a useful option for offline processing and privacy-sensitive applications.
+
+> **Note:** These results are based on a dataset of 20 resumes. Further evaluation with larger and more diverse datasets is recommended before drawing definitive conclusions.
+
+```bash
+uv run python scripts/eval_extract.py
+```
+
+- Loads test cases from `expected_outputs.json` and sends each file in `resumes/` to `POST /extract`.
+- Compares extracted `name`, `email`, `phone`, and `skills` against expected outputs and logs mismatches, errors, and final field accuracy using Python `logging`.
+
+## ⚡ Claude Prompt Caching (Quick Notes)
+
+- **What it does:** Stores reusable prompt prefixes (system instructions, tool definitions, reference docs) in memory so Claude does not reprocess them on every request.
+- **Faster & cheaper:** Cache hits cut latency (time-to-first-token) and give around a 90% input token discount (`0.1x` base input price or lower).
+- **Write vs. read pricing:** Cache writes cost `1.25x` (5-minute default TTL) or `2.0x` (1-hour TTL) of base input price, so reuse from the 2nd request onward saves money.
+- **How to enable:** Add `"cache_control": {"type": "ephemeral"}` breakpoints to static blocks in `system`, `tools`, or `messages` (requires minimum token length, typically 512+ tokens).
+- **Order matters:** Caching matches exact prefixes from top to bottom—keep static instructions/tools first and dynamic user input at the very end.
+- **Verify cache hits:** Check `response.usage` for `cache_read_input_tokens > 0` (hit) vs. `cache_creation_input_tokens > 0` (write).
+
 ## 💻 Example API Calls
 
 ### Upload a document using curl
@@ -454,6 +596,76 @@ curl -X GET "http://localhost:8000/documents" \
   -H "accept: application/json"
 ```
 
+## 🚀 Assignment 9: Background Ingestion – PDF to pgvector
+
+When a PDF or DOCX file is uploaded, it is automatically converted into searchable vector embeddings without blocking the client.
+
+### Ingestion Workflow
+1. **Save File**: The file is streamed to the `uploads/` directory (mounted as a Docker volume and ignored by git).
+2. **Immediate 201 Response**: `POST /documents` returns HTTP `201 Created` with `status: "pending"` right away.
+3. **Background Task**: FastAPI `BackgroundTasks` calls `process_document`:
+   - Updates document status to `processing`.
+   - Extracts text page by page (PyMuPDF for `.pdf`, Docling for `.docx`).
+   - Splits text into chunks of ~800 characters with 100-character overlap, preserving `text`, `filename`, and `page_number`.
+   - Generates 768-dimensional embeddings via local Ollama (`nomic-embed-text`).
+   - Bulk inserts all chunks into PostgreSQL `chunk` table with `pgvector` (`session.add_all()`).
+   - Sets document status to `ready`.
+4. **Error Handling**: Corrupted or empty files update status to `failed` and log errors without crashing the API.
+
+### Test Endpoints with curl
+
+**Upload a PDF (returns 201 immediately):**
+```bash
+curl -X POST "http://localhost:5000/documents" \
+  -F "file=@uploads/sample.pdf"
+```
+
+**List documents and check processing status:**
+```bash
+curl -X GET "http://localhost:5000/documents"
+```
+
+## 🔍 Semantic Search & Retrieval (`GET /search`)
+
+Search over ingested documents using vector embeddings and cosine distance.
+
+### Endpoint Details
+- **Method:** `GET /search`
+- **Query Parameters:**
+  - `q` (string, required): Search query or question.
+  - `k` (integer, optional, default: `5`): Maximum number of top matching chunks to retrieve.
+
+### Example Request
+```bash
+curl -X GET "http://localhost:5000/search?q=What+is+photosynthesis&k=3" \
+  -H "accept: application/json"
+```
+
+### Example Response
+```json
+[
+  {
+    "text": "Photosynthesis is the process used by plants to convert light energy into chemical energy...",
+    "filename": "biology_notes.pdf",
+    "page": 2,
+    "score": 0.8842
+  }
+]
+```
+
+### Running Tests
+
+```bash
+# Run unit tests for vector retriever & search endpoint
+uv run pytest test/test_retriever.py -v
+
+# Run unit tests for ingestion, chunking, and error handling
+uv run pytest test/test_ingestion.py -v
+
+# Run database tests
+uv run pytest test/test_db.py -v
+```
+
 ## 📦 Managing Dependencies with uv
 
 | Action | Command |
@@ -468,22 +680,19 @@ curl -X GET "http://localhost:8000/documents" \
 | Update the lockfile | `uv lock` |
 | Upgrade dependencies | `uv lock --upgrade` |
 | Run a Python command | `uv run python <file.py>` |
-| Run tests | `uv run python -m pytest Tests/ -v` |
+| Run ingestion tests | `uv run pytest test/test_ingestion.py -v` |
+| Run all tests | `uv run pytest -v` |
 
 ## 🔄 Git Workflow & Pull Request
 
-Before submitting Assignment 4:
+Before submitting:
 
-1. Implement SQLModel and PostgreSQL integration.
-2. Add the Dockerfile and `docker-compose.yml`.
-3. Add `.env.example` and update `.gitignore`.
-4. Verify that `docker compose up --build` starts the application and database.
-5. Verify that document records persist after `docker compose down` and `docker compose up --build`.
-6. Run the existing test suite and fix any regressions.
-7. Push your changes to the appropriate feature branch.
-8. Open a pull request.
-9. Ask your partner to review the changes and address feedback.
-10. Merge the pull request after approval, following the team's branch policy.
+1. Implement SQLModel and PostgreSQL pgvector integration.
+2. Verify Dockerfile, `docker-compose.yml`, and `uploads/` volume mounting.
+3. Verify that `docker compose up --build` starts the application, database, and Ollama model downloads.
+4. Verify migrations apply cleanly with `uv run alembic upgrade head`.
+5. Run the test suite: `uv run pytest test/test_ingestion.py -v`.
+6. Push changes to the feature branch and open a pull request.
 
 Never commit actual database passwords or other secrets.
 
@@ -493,12 +702,15 @@ Never commit actual database passwords or other secrets.
 - [x] Document metadata persistence.
 - [x] Dockerfile and Docker Compose configuration.
 - [x] Persistent PostgreSQL storage using a named volume.
-- [ ] PDF, TXT, and DOCX text extraction.
-- [ ] Document chunking and vector embedding generation.
-- [ ] Vector database integration with ChromaDB, Qdrant, or Pinecone.
+- [x] Database migrations with Alembic (`uv run alembic upgrade head`).
+- [x] PDF and DOCX text extraction (PyMuPDF & Docling).
+- [x] Document chunking preserving page numbers and filenames.
+- [x] Vector embedding generation with Ollama (`nomic-embed-text`).
+- [x] Vector database integration with PostgreSQL `pgvector` (`Chunk` table).
+- [x] Asynchronous background ingestion with FastAPI `BackgroundTasks`.
+- [x] Vector similarity search and retriever endpoint (`GET /search`).
 - [ ] Retrieval-Augmented Generation (RAG) question-answering endpoint.
 - [ ] Authentication and authorization.
-- [x] Database migrations with Alembic (`uv run alembic upgrade head`).
 - [ ] Production deployment.
 
 ## 📄 License

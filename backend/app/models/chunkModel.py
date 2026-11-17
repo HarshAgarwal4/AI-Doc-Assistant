@@ -1,8 +1,16 @@
 from uuid import UUID, uuid4
 
 from pgvector.sqlalchemy import Vector
+from pydantic import BaseModel
 from sqlalchemy import Column, ForeignKey
 from sqlmodel import Field, SQLModel
+
+
+class SearchResult(BaseModel):
+    text: str
+    filename: str
+    page: int
+    score: float
 
 
 class Chunk(SQLModel, table=True):

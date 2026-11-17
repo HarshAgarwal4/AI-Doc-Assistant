@@ -31,6 +31,10 @@ A high-performance document management API built with **FastAPI, Pydantic v2, SQ
   - **pgvector Vector Database:** Stores vectors in a dedicated `Chunk` table using PostgreSQL's `vector(768)` type.
   - **Batch Ingestion:** Chunks are saved in bulk via `session.add_all()`.
   - **Fail-Safe Lifecycle:** Tracks document status (`pending` -> `processing` -> `ready`). Broken or empty documents transition to `failed` and log errors without crashing the API.
+- **Vector Similarity Search (Assignment 10 / Retriever):**
+  - **Semantic Retrieval:** `GET /search?q=...&k=5` embeds queries using the same `nomic-embed-text` model and searches indexed chunks via PostgreSQL `pgvector` cosine distance (`<=>`).
+  - **Ranked Results:** Returns top-`k` matching chunks with `text`, `filename`, 1-indexed `page`, and similarity `score` (`1 - distance`).
+  - **Ready Filter:** Queries only chunks from fully processed (`ready`) documents.
 
 ## 📁 Project Structure
 
@@ -62,6 +66,7 @@ AI Doc Assistant/
     │   ├── embedding.py
     │   ├── extraction.py
     │   ├── process_doc.py
+    │   ├── retriever.py
     │   ├── logger.py
     │   ├── llm.py
     │   └── resume.py
@@ -75,6 +80,7 @@ AI Doc Assistant/
     ├── test/
     │   ├── test_db.py
     │   ├── test_ingestion.py
+    │   ├── test_retriever.py
     │   ├── test_ask.py
     │   └── test_resume.py
     └── uploads/
@@ -619,9 +625,40 @@ curl -X POST "http://localhost:5000/documents" \
 curl -X GET "http://localhost:5000/documents"
 ```
 
+## 🔍 Semantic Search & Retrieval (`GET /search`)
+
+Search over ingested documents using vector embeddings and cosine distance.
+
+### Endpoint Details
+- **Method:** `GET /search`
+- **Query Parameters:**
+  - `q` (string, required): Search query or question.
+  - `k` (integer, optional, default: `5`): Maximum number of top matching chunks to retrieve.
+
+### Example Request
+```bash
+curl -X GET "http://localhost:5000/search?q=What+is+photosynthesis&k=3" \
+  -H "accept: application/json"
+```
+
+### Example Response
+```json
+[
+  {
+    "text": "Photosynthesis is the process used by plants to convert light energy into chemical energy...",
+    "filename": "biology_notes.pdf",
+    "page": 2,
+    "score": 0.8842
+  }
+]
+```
+
 ### Running Tests
 
 ```bash
+# Run unit tests for vector retriever & search endpoint
+uv run pytest test/test_retriever.py -v
+
 # Run unit tests for ingestion, chunking, and error handling
 uv run pytest test/test_ingestion.py -v
 
@@ -671,6 +708,7 @@ Never commit actual database passwords or other secrets.
 - [x] Vector embedding generation with Ollama (`nomic-embed-text`).
 - [x] Vector database integration with PostgreSQL `pgvector` (`Chunk` table).
 - [x] Asynchronous background ingestion with FastAPI `BackgroundTasks`.
+- [x] Vector similarity search and retriever endpoint (`GET /search`).
 - [ ] Retrieval-Augmented Generation (RAG) question-answering endpoint.
 - [ ] Authentication and authorization.
 - [ ] Production deployment.

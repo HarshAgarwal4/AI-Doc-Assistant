@@ -8,6 +8,7 @@ from fastapi import (
     FastAPI,
     File,
     HTTPException,
+    Query,
     UploadFile,
     status,
 )
@@ -15,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlmodel import Session, select
 
+from app.models.chunkModel import SearchResult
 from app.models.docModel import Document
 from app.models.llm import LLMRequestModel
 from app.models.resumeModel import ResumeData
@@ -23,6 +25,7 @@ from utils.llm import generate
 from utils.logger import logger
 from utils.process_doc import process_document
 from utils.resume import extract_resume_data, extract_text
+from utils.retriever import search
 
 app = FastAPI(
     title="AI Doc Assistant",
@@ -173,6 +176,18 @@ def get_documents(
 ):
     documents = session.exec(select(Document)).all()
     return documents
+
+
+@app.get(
+    "/search",
+    response_model=list[SearchResult],
+    status_code=status.HTTP_200_OK,
+)
+async def search_endpoint(
+    q: Annotated[str, Query(description="Search query string")],
+    k: Annotated[int, Query(description="Number of chunks to retrieve" , ge=1 , le=50)] = 5,
+):
+    return await search(q=q, k=k)
 
 @app.get("/page", response_class=HTMLResponse)
 def get_page():

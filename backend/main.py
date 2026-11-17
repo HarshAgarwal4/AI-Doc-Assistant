@@ -185,7 +185,7 @@ def get_documents(
 )
 async def search_endpoint(
     q: Annotated[str, Query(description="Search query string")],
-    k: Annotated[int, Query(description="Number of chunks to retrieve")] = 5,
+    k: Annotated[int, Query(description="Number of chunks to retrieve" , ge=1 , le=50)] = 5,
 ):
     return await search(q=q, k=k)
 

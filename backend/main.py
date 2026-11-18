@@ -1,6 +1,7 @@
 import hashlib
 from pathlib import Path
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import (
     BackgroundTasks,
@@ -16,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlmodel import Session, select
 
-from app.models.chunkModel import SearchResult
+from app.models.chunkModel import Chunk, SearchResult
 from app.models.docModel import Document
 from app.models.llm import LLMRequestModel
 from app.models.resumeModel import ResumeData
@@ -176,6 +177,38 @@ def get_documents(
 ):
     documents = session.exec(select(Document)).all()
     return documents
+
+@app.delete("/documents/{id}", status_code=status.HTTP_200_OK)
+def delete_document(
+    id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+):
+    document = session.get(Document, id)
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+    file_path = UPLOAD_DIR / document.filename
+    if file_path.exists():
+        file_path.unlink()
+    session.delete(document)
+    session.commit()
+    return {"message": "Document deleted successfully"}
+
+@app.get("/chunks/{id}", response_model=list[Chunk], status_code=status.HTTP_200_OK)
+def get_document_chunks(
+    id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+):
+    document = session.get(Document, id)
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+    chunks = session.exec(select(Chunk).where(Chunk.document_id == id)).all()
+    return chunks
 
 
 @app.get(

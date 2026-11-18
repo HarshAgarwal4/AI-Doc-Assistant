@@ -7,7 +7,7 @@ from sqlmodel import Session, delete, select
 from app.models.chunkModel import Chunk
 from app.models.docModel import Document
 from database.database import engine
-from utils.chunking import chunk_page_data
+from utils.chunking import chunk_page_data, chunk_with_docling
 from utils.embedding import generate_embeddings
 from utils.extraction import read_document_pages
 from utils.logger import logger
@@ -62,11 +62,33 @@ def process_document(file_path: str, document_id: UUID | str):
                 session.add(document)
                 session.commit()
 
-                # 1. Read document pages
-                pages = read_document_pages(file_path)
+                # Route documents: if parsed by Docling, chunk by Docling
+                ext = Path(file_path).suffix.lower()
+                use_docling = False
 
-                # 2. Split pages into chunks
-                chunks_data = chunk_page_data(pages, document.filename)
+                if Path(file_path).exists():
+                    if ext == ".docx":
+                        use_docling = True
+                    elif ext == ".pdf":
+                        import pymupdf
+                        with pymupdf.open(file_path) as pdf:
+                            total_pages = len(pdf)
+                        if total_pages <= 15:
+                            use_docling = True
+                        else:
+                            has_text = any(bool(page.get_text("text").strip()) for page in pymupdf.open(file_path))
+                            if not has_text:
+                                if total_pages > 25:
+                                    from fastapi import HTTPException
+                                    raise HTTPException(status_code=400, detail="Document unprocessable")
+                                use_docling = True
+
+                if use_docling:
+                    chunks_data = chunk_with_docling(file_path)
+                else:
+                    pages = read_document_pages(file_path)
+                    chunks_data = chunk_page_data(pages, document.filename)
+
                 if not chunks_data:
                     raise ValueError("No text found in document.")
 
@@ -111,6 +133,7 @@ def process_document(file_path: str, document_id: UUID | str):
                 # Purge chunks so failed document never keeps old/orphan chunks
                 session.exec(delete(Chunk).where(Chunk.document_id == document.id))
                 document.status = "failed"
+                document.file_hash = None
                 session.add(document)
                 session.commit()
 

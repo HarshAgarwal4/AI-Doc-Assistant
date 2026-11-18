@@ -202,3 +202,63 @@ def test_generate_events(monkeypatch: pytest.MonkeyPatch, test_session: Session)
         assert 'data: {"filename": ["python_guide.pdf", "python_guide.pdf"]}' in output
         assert "event: token" in output
         assert "event: saved" in output
+
+
+# 8. Test RAG edge case: empty retrieval results
+@patch("utils.llm.get_llm", return_value=MockLLM())
+def test_ask_empty_retrieval_results(mock_get_llm, client: TestClient, mock_retriever_search):
+    mock_retriever_search.return_value = []
+    payload = {"question": "Question with no matching documents", "provider": "Ollama"}
+    response = client.post("/ask", json=payload)
+
+    assert response.status_code == 200
+    assert "event: pages" in response.text
+    assert 'data: {"pages": []}' in response.text
+    assert "event: filename" in response.text
+    assert 'data: {"filename": []}' in response.text
+    assert "event: token" in response.text
+    assert 'data: {"text": "Hello "}' in response.text
+    assert 'data: {"text": "world!"}' in response.text
+    assert "event: saved" in response.text
+
+
+# 9. Test RAG edge case: missing chunk metadata (None page/filename)
+@patch("utils.llm.get_llm", return_value=MockLLM())
+def test_ask_missing_chunk_metadata(mock_get_llm, client: TestClient, mock_retriever_search):
+    mock_retriever_search.return_value = [
+        {"text": "Content with missing metadata", "filename": None, "page": None, "score": 0.85}
+    ]
+    payload = {"question": "Question with null chunk metadata", "provider": "Ollama"}
+    response = client.post("/ask", json=payload)
+
+    assert response.status_code == 200
+    assert "event: pages" in response.text
+    assert 'data: {"pages": [null]}' in response.text
+    assert "event: filename" in response.text
+    assert 'data: {"filename": [null]}' in response.text
+    assert "event: token" in response.text
+    assert "event: saved" in response.text
+
+
+# 10. Test RAG edge case: retrieval failure handling (HTTP 502)
+@patch("utils.retry.asyncio.sleep", new_callable=AsyncMock)
+def test_ask_retrieval_failure(mock_sleep, client: TestClient, mock_retriever_search):
+    mock_retriever_search.side_effect = RuntimeError("Database connection failed during retrieval")
+    payload = {"question": "What is Python?", "provider": "Ollama"}
+    response = client.post("/ask", json=payload)
+
+    assert response.status_code == 502
+    assert "LLM aprovider failed before streaming started" in response.json()["detail"]
+
+
+# 11. Test direct generate() raises on retrieval failure
+@patch("utils.retry.asyncio.sleep", new_callable=AsyncMock)
+def test_generate_retrieval_failure_raises(mock_sleep, mock_retriever_search):
+    mock_retriever_search.side_effect = RuntimeError("Vector store unreachable")
+
+    async def run():
+        async for _ in generate(question="What is Python?", provider="Ollama"):
+            pass
+
+    with pytest.raises((RuntimeError, AttributeError)):
+        asyncio.run(run())

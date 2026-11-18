@@ -61,20 +61,20 @@ def get_llm(provider: str):
         return ChatGroq(
             api_key=os.getenv("GROQ_API_KEY"),
             model=model,
-            temperature=0.5,
+            temperature=0.1
         )
 
     elif provider == "Mistral":
         return ChatMistralAI(
             api_key=os.getenv("MISTRAL_API_KEY"),
             model=model,
-            temperature=0.5,
+            temperature=0.1,
         )
 
     elif provider == "Ollama":
         return ChatOllama(
             model=model,
-            temperature=0.5,
+            temperature=0.1,
             base_url=os.getenv("OLLAMA_BASE_URL","http://localhost:11434")
         )
 
@@ -194,6 +194,8 @@ Always ground your answer in the retrieved context. Never hallucinate.
     logger.info(f"files = {files}")
     yield make_event("pages", {"pages": pages})
     yield make_event("filename", {"filename": files})
+    yield make_event("Chunks", {"filename": chunks})
+    yield make_event("Response" ,output_text )
     logger.info("LLM GENERATION COMPLETED")
     # 3. Calculate generation time
     total_time = time.perf_counter() - start_time

@@ -72,7 +72,16 @@ def process_document(file_path: str, document_id: UUID | str):
 
                 # 3. Generate embeddings in batch
                 texts = [c["text"] for c in chunks_data]
-                embeddings = generate_embeddings(texts)
+                batch_size = 100
+                embeddings = []
+
+                for i in range(0, len(texts), batch_size):
+                    batch = texts[i:i + batch_size]
+                    batch_embeddings = generate_embeddings(batch)
+
+                    embeddings.extend(batch_embeddings)
+
+                print("Total embeddings:", len(embeddings))
 
                 # 4. Construct Chunk instances
                 chunks = [

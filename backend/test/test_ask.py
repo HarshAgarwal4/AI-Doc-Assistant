@@ -48,6 +48,16 @@ def client(
     app.dependency_overrides.clear()
 
 
+@pytest.fixture(autouse=True)
+def mock_retriever_search():
+    with patch("utils.llm.search", new_callable=AsyncMock) as mock_search:
+        mock_search.return_value = [
+            {"text": "Python is a high-level language.", "filename": "python_guide.pdf", "page": 1, "score": 0.95},
+            {"text": "Python supports multiple paradigms.", "filename": "python_guide.pdf", "page": 2, "score": 0.90},
+        ]
+        yield mock_search
+
+
 class MockChunk:
     def __init__(self, content: str, input_tokens: int = 5, output_tokens: int = 5):
         self.content = content
@@ -84,6 +94,10 @@ def test_ask_success(mock_get_llm, client: TestClient, test_session: Session):
     response = client.post("/ask", json=payload)
 
     assert response.status_code == 200
+    assert "event: pages" in response.text
+    assert 'data: {"pages": [1, 2]}' in response.text
+    assert "event: filename" in response.text
+    assert 'data: {"filename": ["python_guide.pdf", "python_guide.pdf"]}' in response.text
     assert "event: token" in response.text
     assert 'data: {"text": "Hello "}' in response.text
     assert 'data: {"text": "world!"}' in response.text
@@ -159,3 +173,32 @@ def test_ask_validation_missing_question(client: TestClient):
     response = client.post("/ask", json=payload)
 
     assert response.status_code == 422
+
+
+# 6. Test /page endpoint returns HTML containing filename and pages elements
+def test_page_endpoint(client: TestClient):
+    response = client.get("/page")
+    assert response.status_code == 200
+    assert "doc-files" in response.text
+    assert "doc-pages" in response.text
+    assert 'event === "pages"' in response.text
+    assert 'event === "filename"' in response.text
+
+
+# 7. Test direct generate() yields pages, filename, token, and saved events
+def test_generate_events(monkeypatch: pytest.MonkeyPatch, test_session: Session):
+    monkeypatch.setattr("utils.llm.engine", test_engine)
+    with patch("utils.llm.get_llm", return_value=MockLLM()):
+        async def run():
+            events = []
+            async for ev in generate(question="What is Python?", provider="Ollama"):
+                events.append(ev)
+            return "".join(events)
+
+        output = asyncio.run(run())
+        assert "event: pages" in output
+        assert 'data: {"pages": [1, 2]}' in output
+        assert "event: filename" in output
+        assert 'data: {"filename": ["python_guide.pdf", "python_guide.pdf"]}' in output
+        assert "event: token" in output
+        assert "event: saved" in output

@@ -25,6 +25,7 @@ from database.database import get_session
 from utils.llm import generate
 from utils.logger import logger
 from utils.process_doc import process_document
+from utils.prompt_parser import parse_prompt
 from utils.resume import extract_resume_data, extract_text
 from utils.retriever import search
 
@@ -208,7 +209,10 @@ def get_document_chunks(
             detail="Document not found",
         )
     chunks = session.exec(select(Chunk).where(Chunk.document_id == id)).all()
-    return chunks
+    return [
+        chunk.model_dump(exclude={"embedding"})
+        for chunk in chunks
+    ]
 
 
 @app.get(
@@ -570,18 +574,6 @@ async function askQuestion() {
                 output.scrollTop = output.scrollHeight;
             }
 
-            else if (event === "pages") {
-                const pages = Array.isArray(data) ? data : (data.pages || data.page || []);
-                const pageList = Array.isArray(pages) ? [...new Set(pages)].filter(x => x !== null && x !== undefined).join(", ") : pages;
-                docPages.innerHTML = `<strong>Pages:</strong> ${escapeHTML(pageList || "None")}`;
-            }
-
-            else if (event === "filename") {
-                const files = Array.isArray(data) ? data : (data.filename || data.filenames || data.files || []);
-                const fileList = Array.isArray(files) ? [...new Set(files)].filter(Boolean).join(", ") : files;
-                docFiles.innerHTML = `<strong>Filename:</strong> ${escapeHTML(fileList || "None")}`;
-            }
-
             else if (event === "saved") {
                 saved = true;
 
@@ -697,8 +689,10 @@ async def stream_response(first_chunk, generator):
 @app.post('/ask')
 async def ask_llm(req: LLMRequestModel):
 
+    clean_question = parse_prompt(req.question)
+
     generator = generate(
-        question=req.question,
+        question=clean_question,
         provider=req.provider,
     )
 
@@ -710,6 +704,9 @@ async def ask_llm(req: LLMRequestModel):
             status_code=504,
             detail="LLM request timed out",
         )
+
+    except HTTPException:
+        raise
 
     except Exception:  # noqa: BLE001
         logger.exception("LLM INITIALIZATION FAILED")

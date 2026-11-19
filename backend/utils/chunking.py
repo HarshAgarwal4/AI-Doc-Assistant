@@ -258,14 +258,17 @@ def chunk_with_docling(file_path: str) -> list[dict]:
             headings_list.append(f"{indent}- {item.text.strip()}{page_info}")
 
     if headings_list:
-        headings_content = f"# All Headings of {filename}\n\n" + "\n".join(headings_list)
-        for h_text in recursive_text_splitter.split_text(headings_content):
+        common_heading = f"All Headings of {filename}"
+        headings_body = "\n".join(headings_list)
+        split_chunks = recursive_text_splitter.split_text(headings_body)
+        for h_text in split_chunks:
+            full_text = f"{common_heading}\n\n{h_text.strip()}"
             chunks.append({
-                "text": h_text.strip(),
+                "text": full_text.strip(),
                 "filename": filename,
                 "page_number": 1,
             })
-            logger.info("Added document headings overview chunk | Length: %d", len(h_text))
+            logger.info("Added document headings overview chunk | Length: %d", len(full_text))
 
     chunking_time = log_time("Docling chunk generation", step_start)
 

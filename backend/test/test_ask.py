@@ -94,14 +94,14 @@ def test_ask_success(mock_get_llm, client: TestClient, test_session: Session):
     response = client.post("/ask", json=payload)
 
     assert response.status_code == 200
-    assert "event: pages" in response.text
-    assert 'data: {"pages": [1, 2]}' in response.text
-    assert "event: filename" in response.text
-    assert 'data: {"filename": ["python_guide.pdf", "python_guide.pdf"]}' in response.text
     assert "event: token" in response.text
     assert 'data: {"text": "Hello "}' in response.text
     assert 'data: {"text": "world!"}' in response.text
     assert "event: saved" in response.text
+    assert "event: pages" not in response.text
+    assert "event: filename" not in response.text
+    assert "event: Chunks" not in response.text
+    assert "event: Response" not in response.text
 
     # Verify call saved into SQLite database
     saved_calls = test_session.exec(select(LLMCall)).all()
@@ -175,17 +175,15 @@ def test_ask_validation_missing_question(client: TestClient):
     assert response.status_code == 422
 
 
-# 6. Test /page endpoint returns HTML containing filename and pages elements
+# 6. Test /page endpoint returns HTML
 def test_page_endpoint(client: TestClient):
     response = client.get("/page")
     assert response.status_code == 200
     assert "doc-files" in response.text
     assert "doc-pages" in response.text
-    assert 'event === "pages"' in response.text
-    assert 'event === "filename"' in response.text
 
 
-# 7. Test direct generate() yields pages, filename, token, and saved events
+# 7. Test direct generate() yields token and saved events without raw pages/filename events
 def test_generate_events(monkeypatch: pytest.MonkeyPatch, test_session: Session):
     monkeypatch.setattr("utils.llm.engine", test_engine)
     with patch("utils.llm.get_llm", return_value=MockLLM()):
@@ -196,12 +194,12 @@ def test_generate_events(monkeypatch: pytest.MonkeyPatch, test_session: Session)
             return "".join(events)
 
         output = asyncio.run(run())
-        assert "event: pages" in output
-        assert 'data: {"pages": [1, 2]}' in output
-        assert "event: filename" in output
-        assert 'data: {"filename": ["python_guide.pdf", "python_guide.pdf"]}' in output
         assert "event: token" in output
         assert "event: saved" in output
+        assert "event: pages" not in output
+        assert "event: filename" not in output
+        assert "event: Chunks" not in output
+        assert "event: Response" not in output
 
 
 # 8. Test RAG edge case: empty retrieval results
@@ -212,14 +210,12 @@ def test_ask_empty_retrieval_results(mock_get_llm, client: TestClient, mock_retr
     response = client.post("/ask", json=payload)
 
     assert response.status_code == 200
-    assert "event: pages" in response.text
-    assert 'data: {"pages": []}' in response.text
-    assert "event: filename" in response.text
-    assert 'data: {"filename": []}' in response.text
     assert "event: token" in response.text
     assert 'data: {"text": "Hello "}' in response.text
     assert 'data: {"text": "world!"}' in response.text
     assert "event: saved" in response.text
+    assert "event: pages" not in response.text
+    assert "event: filename" not in response.text
 
 
 # 9. Test RAG edge case: missing chunk metadata (None page/filename)
@@ -232,12 +228,45 @@ def test_ask_missing_chunk_metadata(mock_get_llm, client: TestClient, mock_retri
     response = client.post("/ask", json=payload)
 
     assert response.status_code == 200
-    assert "event: pages" in response.text
-    assert 'data: {"pages": [null]}' in response.text
-    assert "event: filename" in response.text
-    assert 'data: {"filename": [null]}' in response.text
     assert "event: token" in response.text
     assert "event: saved" in response.text
+    assert "event: pages" not in response.text
+    assert "event: filename" not in response.text
+
+
+# 10. Test prompt formatting includes filename and page number for LLM context
+def test_generate_prompt_contains_filename_and_pages(monkeypatch: pytest.MonkeyPatch, test_session: Session):
+    monkeypatch.setattr("utils.llm.engine", test_engine)
+    captured_messages = []
+
+    class CapturingLLM:
+        async def astream(self, messages):
+            captured_messages.extend(messages)
+            yield MockChunk("I don't know.", 5, 5)
+
+    with patch("utils.llm.get_llm", return_value=CapturingLLM()):
+        async def run():
+            events = []
+            async for ev in generate(question="What is Python?", provider="Ollama"):
+                events.append(ev)
+            return "".join(events)
+
+        _ = asyncio.run(run())
+
+    assert len(captured_messages) == 2
+    system_msg, user_msg = captured_messages[0], captured_messages[1]
+
+    # Verify system prompt instructs LLM on filename, page, and 'I don't know' rules
+    system_prompt_text = system_msg.content
+    assert "I don't know." in system_prompt_text
+    assert "show the source filename and page number" in system_prompt_text
+    assert "If and only if the response is successful" in system_prompt_text
+
+    # Verify user prompt contains filenames and page numbers of retrieved chunks
+    user_prompt_text = user_msg.content
+    assert "Filename: python_guide.pdf" in user_prompt_text
+    assert "Page 1" in user_prompt_text
+    assert "Page 2" in user_prompt_text
 
 
 # 10. Test RAG edge case: retrieval failure handling (HTTP 502)

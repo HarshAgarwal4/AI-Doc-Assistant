@@ -35,6 +35,17 @@ A high-performance document management API built with **FastAPI, Pydantic v2, SQ
   - **Semantic Retrieval:** `GET /search?q=...&k=5` embeds queries using the same `nomic-embed-text` model and searches indexed chunks via PostgreSQL `pgvector` cosine distance (`<=>`).
   - **Ranked Results:** Returns top-`k` matching chunks with `text`, `filename`, 1-indexed `page`, and similarity `score` (`1 - distance`).
   - **Ready Filter:** Queries only chunks from fully processed (`ready`) documents.
+- **Streaming Retrieval-Augmented Generation (RAG - `POST /ask`):**
+  - **Server-Sent Events (SSE) Streaming:** Real-time token streaming (`event: token`) followed by persistence confirmation (`event: saved`).
+  - **Multi-Provider Support:** Google Gemini (`gemini-3.5-flash-lite`), Groq (`gpt-oss-120b`), Mistral AI (`ministral-3b-2512`), and local Ollama (`llama3.2:1b`).
+  - **Resilience & Rate Limiting:** Decorator-driven retries with exponential backoff on HTTP 429 rate limits and provider timeouts.
+  - **Cost & Audit Tracking:** Every completion is saved to the `LLMCall` PostgreSQL table tracking input/output tokens, execution latency, and exact cost in USD.
+  - **Accurate Document Citations:** Synthesizes multi-page information, handles calculations, and outputs clean source citations (`Sources: - filename.pdf, Page X`).
+- **Multi-Layered Security & Jailbreak Defense:**
+  - **ML-Based Classification (`backend/ML/`):** Dual-model ensemble (Linear SVM + Multinomial Naive Bayes with TF-IDF) trained on `rag_security_training.csv` to classify prompts before retrieval. Adversarial queries immediately yield `"I don't know."` at zero token cost.
+  - **Rule-Based Sanitizer (`utils/prompt_parser.py`):** Filters out malicious HTML/XML script tags, zero-width characters, LLM control tokens, instruction resets, roleplay overrides (`DAN`, `developer mode`), and JSON chat continuation attacks.
+- **Interactive Streaming Playground (`GET /page`):**
+  - Browser-based playground for testing document Q&A, switching LLM providers on the fly, aborting in-flight streams, and viewing live performance metrics.
 
 ## 📁 Project Structure
 
@@ -53,6 +64,14 @@ AI Doc Assistant/
     ├── pyproject.toml
     ├── uv.lock
     ├── main.py
+    ├── linear_svm_model.pkl
+    ├── naive_bayes_model.pkl
+    ├── tfidf_vectorizer.pkl
+    ├── rag_security_training.csv
+    ├── ML/
+    │   ├── cleaning.py
+    │   ├── model.py
+    │   └── predict.py
     ├── app/
     │   └── models/
     │       ├── docModel.py
@@ -67,13 +86,13 @@ AI Doc Assistant/
     │   ├── extraction.py
     │   ├── process_doc.py
     │   ├── retriever.py
+    │   ├── prompt_parser.py
+    │   ├── retry.py
     │   ├── logger.py
     │   ├── llm.py
     │   └── resume.py
     ├── migrations/
     │   ├── versions/
-    │   │   ├── ...
-    │   │   └── 975d7559b56d_added_chunk_table.py
     │   ├── env.py
     │   ├── script.py.mako
     │   └── README
@@ -82,6 +101,7 @@ AI Doc Assistant/
     │   ├── test_ingestion.py
     │   ├── test_retriever.py
     │   ├── test_ask.py
+    │   ├── test_prompt_parser.py
     │   └── test_resume.py
     └── uploads/
 ```
@@ -483,6 +503,62 @@ Example response:
 }
 ```
 
+### 5. Ask Questions with Streaming RAG (`POST /ask`)
+
+Streams real-time answers grounded strictly in retrieved document context via Server-Sent Events (SSE).
+
+| Property | Value |
+|---|---|
+| Method | `POST` |
+| Endpoint | `/ask` |
+| Content type | `application/json` |
+| Response type | `text/event-stream` |
+
+**Request Body:**
+
+```json
+{
+  "question": "What are the key findings of the annual financial report?",
+  "provider": "Groq"
+}
+```
+
+*Supported providers:* `Google`, `Groq`, `Mistral`, `Ollama`.
+
+**Event Stream Workflow:**
+1. **Security Classification:** The raw question is classified by `detect_with_both` (SVM + Naive Bayes). If flagged as an adversarial jailbreak or prompt injection, it immediately streams `"I don't know."` and exits without invoking the LLM.
+2. **Prompt Normalization:** Benign queries are parsed via `parse_prompt()` to strip dangerous script tags and delimiters.
+3. **Context Retrieval:** Top chunks are retrieved from PostgreSQL via vector similarity search.
+4. **Token Streaming:** Emits `event: token` containing delta text:
+   ```text
+   event: token
+   data: {"text": "The company reported..."}
+   ```
+5. **Database Audit & Persistence:** Emits `event: saved` after committing the call to the `LLMCall` table:
+   ```text
+   event: saved
+   data: {
+     "message": "Response generated and saved successfully",
+     "record_id": "c1f7b02e-...",
+     "time_taken": 1.45,
+     "input_tokens": 1250,
+     "output_tokens": 85,
+     "cost_usd": 0.000238
+   }
+   ```
+
+### 6. Interactive Streaming Playground (`GET /page`)
+
+Returns a responsive, browser-ready UI (`http://localhost:5000/page`) to test streaming queries, switch LLM providers, abort active requests in real-time, and inspect request latency and database IDs.
+
+### 7. Get Document Chunks (`GET /chunks/{id}`)
+
+Retrieves all extracted chunks and metadata for a specific document ID.
+
+```bash
+curl -X GET "http://localhost:5000/chunks/<document_uuid>"
+```
+
 ## 📊 Resume Extraction Evaluation (`scripts/eval_extract.py`)
 
 Run the evaluation script from the `backend/` directory while the API server is running at `http://localhost:5000`.
@@ -709,7 +785,10 @@ Never commit actual database passwords or other secrets.
 - [x] Vector database integration with PostgreSQL `pgvector` (`Chunk` table).
 - [x] Asynchronous background ingestion with FastAPI `BackgroundTasks`.
 - [x] Vector similarity search and retriever endpoint (`GET /search`).
-- [ ] Retrieval-Augmented Generation (RAG) question-answering endpoint.
+- [x] Streaming Retrieval-Augmented Generation (RAG) endpoint (`POST /ask`).
+- [x] Interactive Browser Playground (`GET /page`).
+- [x] Multi-layered security defense (ML jailbreak classifier + prompt parser).
+- [x] LLM call logging, latency measurement, and dollar cost tracking.
 - [ ] Authentication and authorization.
 - [ ] Production deployment.
 

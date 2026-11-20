@@ -31,6 +31,21 @@ A high-performance document management API built with **FastAPI, Pydantic v2, SQ
   - **pgvector Vector Database:** Stores vectors in a dedicated `Chunk` table using PostgreSQL's `vector(768)` type.
   - **Batch Ingestion:** Chunks are saved in bulk via `session.add_all()`.
   - **Fail-Safe Lifecycle:** Tracks document status (`pending` -> `processing` -> `ready`). Broken or empty documents transition to `failed` and log errors without crashing the API.
+- **Vector Similarity Search (Assignment 10 / Retriever):**
+  - **Semantic Retrieval:** `GET /search?q=...&k=5` embeds queries using the same `nomic-embed-text` model and searches indexed chunks via PostgreSQL `pgvector` cosine distance (`<=>`).
+  - **Ranked Results:** Returns top-`k` matching chunks with `text`, `filename`, 1-indexed `page`, and similarity `score` (`1 - distance`).
+  - **Ready Filter:** Queries only chunks from fully processed (`ready`) documents.
+- **Streaming Retrieval-Augmented Generation (RAG - `POST /ask`):**
+  - **Server-Sent Events (SSE) Streaming:** Real-time token streaming (`event: token`) followed by persistence confirmation (`event: saved`).
+  - **Multi-Provider Support:** Google Gemini (`gemini-3.5-flash-lite`), Groq (`gpt-oss-120b`), Mistral AI (`ministral-3b-2512`), and local Ollama (`llama3.2:1b`).
+  - **Resilience & Rate Limiting:** Decorator-driven retries with exponential backoff on HTTP 429 rate limits and provider timeouts.
+  - **Cost & Audit Tracking:** Every completion is saved to the `LLMCall` PostgreSQL table tracking input/output tokens, execution latency, and exact cost in USD.
+  - **Accurate Document Citations:** Synthesizes multi-page information, handles calculations, and outputs clean source citations (`Sources: - filename.pdf, Page X`).
+- **Multi-Layered Security & Jailbreak Defense:**
+  - **ML-Based Classification (`backend/ML/`):** Dual-model ensemble (Linear SVM + Multinomial Naive Bayes with TF-IDF) trained on `rag_security_training.csv` to classify prompts before retrieval. Adversarial queries immediately yield `"I don't know."` at zero token cost.
+  - **Rule-Based Sanitizer (`utils/prompt_parser.py`):** Filters out malicious HTML/XML script tags, zero-width characters, LLM control tokens, instruction resets, roleplay overrides (`DAN`, `developer mode`), and JSON chat continuation attacks.
+- **Interactive Streaming Playground (`GET /page`):**
+  - Browser-based playground for testing document Q&A, switching LLM providers on the fly, aborting in-flight streams, and viewing live performance metrics.
 
 ## 📁 Project Structure
 
@@ -49,6 +64,14 @@ AI Doc Assistant/
     ├── pyproject.toml
     ├── uv.lock
     ├── main.py
+    ├── linear_svm_model.pkl
+    ├── naive_bayes_model.pkl
+    ├── tfidf_vectorizer.pkl
+    ├── rag_security_training.csv
+    ├── ML/
+    │   ├── cleaning.py
+    │   ├── model.py
+    │   └── predict.py
     ├── app/
     │   └── models/
     │       ├── docModel.py
@@ -62,20 +85,23 @@ AI Doc Assistant/
     │   ├── embedding.py
     │   ├── extraction.py
     │   ├── process_doc.py
+    │   ├── retriever.py
+    │   ├── prompt_parser.py
+    │   ├── retry.py
     │   ├── logger.py
     │   ├── llm.py
     │   └── resume.py
     ├── migrations/
     │   ├── versions/
-    │   │   ├── ...
-    │   │   └── 975d7559b56d_added_chunk_table.py
     │   ├── env.py
     │   ├── script.py.mako
     │   └── README
     ├── test/
     │   ├── test_db.py
     │   ├── test_ingestion.py
+    │   ├── test_retriever.py
     │   ├── test_ask.py
+    │   ├── test_prompt_parser.py
     │   └── test_resume.py
     └── uploads/
 ```
@@ -477,9 +503,132 @@ Example response:
 }
 ```
 
+### 5. Ask Questions with Streaming RAG (`POST /ask`)
+
+Streams real-time answers grounded strictly in retrieved document context via Server-Sent Events (SSE).
+
+| Property | Value |
+|---|---|
+| Method | `POST` |
+| Endpoint | `/ask` |
+| Content type | `application/json` |
+| Response type | `text/event-stream` |
+
+**Request Body:**
+
+```json
+{
+  "question": "What are the key findings of the annual financial report?",
+  "provider": "Groq"
+}
+```
+
+*Supported providers:* `Google`, `Groq`, `Mistral`, `Ollama`.
+
+**Event Stream Workflow:**
+1. **Security Classification:** The raw question is classified by `detect_with_both` (SVM + Naive Bayes). If flagged as an adversarial jailbreak or prompt injection, it immediately streams `"I don't know."` and exits without invoking the LLM.
+2. **Prompt Normalization:** Benign queries are parsed via `parse_prompt()` to strip dangerous script tags and delimiters.
+3. **Context Retrieval:** Top chunks are retrieved from PostgreSQL via vector similarity search.
+4. **Token Streaming:** Emits `event: token` containing delta text:
+   ```text
+   event: token
+   data: {"text": "The company reported..."}
+   ```
+5. **Database Audit & Persistence:** Emits `event: saved` after committing the call to the `LLMCall` table:
+   ```text
+   event: saved
+   data: {
+     "message": "Response generated and saved successfully",
+     "record_id": "c1f7b02e-...",
+     "time_taken": 1.45,
+     "input_tokens": 1250,
+     "output_tokens": 85,
+     "cost_usd": 0.000238
+   }
+   ```
+
+### 6. Interactive Streaming Playground (`GET /page`)
+
+Returns a responsive, browser-ready UI (`http://localhost:5000/page`) to test streaming queries, switch LLM providers, abort active requests in real-time, and inspect request latency and database IDs.
+
+### 7. Get Document Chunks (`GET /chunks/{id}`)
+
+Retrieves all extracted chunks and metadata for a specific document ID.
+
+```bash
+curl -X GET "http://localhost:5000/chunks/<document_uuid>"
+```
+
 ## 📊 Resume Extraction Evaluation (`scripts/eval_extract.py`)
 
-Run the evaluation script from `backend/` while the API server is running on `http://localhost:5000`:
+Run the evaluation script from the `backend/` directory while the API server is running at `http://localhost:5000`.
+
+### 1. Groq Evaluation Results
+
+**Model:** Groq (LLM)
+
+| Metric | Result |
+|---|---:|
+| Total Resumes | 20 |
+| Valid Responses | 18 |
+| Failed Responses | 2 |
+| Correct Fields | 72 |
+| Total Fields | 72 |
+| **Field Accuracy** | **100.00%** |
+| Total API Time | 72.73 seconds |
+| Average API Time | 4.04 seconds |
+| Total Execution Time | 138.02 seconds |
+
+**Observation:**
+- Achieved 100% field accuracy across all successfully evaluated fields.
+- 2 responses failed during extraction.
+- Faster API response time compared to the local Ollama model.
+
+### 2. Ollama Evaluation Results
+
+**Model:** Llama 3.2 (3B) – Local Model
+
+| Metric | Result |
+|---|---:|
+| Total Resumes | 20 |
+| Valid Responses | 20 |
+| Failed Responses | 0 |
+| Correct Fields | 71 |
+| Total Fields | 80 |
+| **Field Accuracy** | **88.75%** |
+| Total API Time | 140.73 seconds |
+| Average API Time | 9.35 seconds |
+| Total Execution Time | 288.67 seconds |
+
+**Observation:**
+- Successfully processed all 20 resumes without any failed responses.
+- Achieved 88.75% field accuracy.
+- The smaller local model struggled with some complex resume extraction cases.
+- Slower response time compared to Groq.
+
+### 3. Model Comparison
+
+| Metric | Groq | Ollama (Llama 3.2 3B) |
+|---|---:|---:|
+| Total Resumes | 20 | 20 |
+| Valid Responses | 18 | 20 |
+| Failed Responses | 2 | 0 |
+| Correct Fields | 72 | 71 |
+| Total Fields | 72 | 80 |
+| Field Accuracy | **100.00%** | 88.75% |
+| Average API Time | **4.04 sec** | 9.35 sec |
+| Total Execution Time | **138.02 sec** | 288.67 sec |
+
+### 4. Conclusion
+
+- **Groq:** Delivered higher field accuracy and faster API responses, but encountered 2 failed responses.
+- **Ollama:** Successfully processed all resumes without failures but had lower extraction accuracy and slower execution.
+
+Groq performed better in terms of extraction accuracy and speed, whereas Ollama demonstrated better response reliability in this evaluation.
+
+**Final Verdict:** Groq is the better choice for accurate and fast resume extraction based on these results. However, Ollama remains a useful option for offline processing and privacy-sensitive applications.
+
+> **Note:** These results are based on a dataset of 20 resumes. Further evaluation with larger and more diverse datasets is recommended before drawing definitive conclusions.
 
 ```bash
 uv run python scripts/eval_extract.py
@@ -552,9 +701,40 @@ curl -X POST "http://localhost:5000/documents" \
 curl -X GET "http://localhost:5000/documents"
 ```
 
+## 🔍 Semantic Search & Retrieval (`GET /search`)
+
+Search over ingested documents using vector embeddings and cosine distance.
+
+### Endpoint Details
+- **Method:** `GET /search`
+- **Query Parameters:**
+  - `q` (string, required): Search query or question.
+  - `k` (integer, optional, default: `5`): Maximum number of top matching chunks to retrieve.
+
+### Example Request
+```bash
+curl -X GET "http://localhost:5000/search?q=What+is+photosynthesis&k=3" \
+  -H "accept: application/json"
+```
+
+### Example Response
+```json
+[
+  {
+    "text": "Photosynthesis is the process used by plants to convert light energy into chemical energy...",
+    "filename": "biology_notes.pdf",
+    "page": 2,
+    "score": 0.8842
+  }
+]
+```
+
 ### Running Tests
 
 ```bash
+# Run unit tests for vector retriever & search endpoint
+uv run pytest test/test_retriever.py -v
+
 # Run unit tests for ingestion, chunking, and error handling
 uv run pytest test/test_ingestion.py -v
 
@@ -604,7 +784,11 @@ Never commit actual database passwords or other secrets.
 - [x] Vector embedding generation with Ollama (`nomic-embed-text`).
 - [x] Vector database integration with PostgreSQL `pgvector` (`Chunk` table).
 - [x] Asynchronous background ingestion with FastAPI `BackgroundTasks`.
-- [ ] Retrieval-Augmented Generation (RAG) question-answering endpoint.
+- [x] Vector similarity search and retriever endpoint (`GET /search`).
+- [x] Streaming Retrieval-Augmented Generation (RAG) endpoint (`POST /ask`).
+- [x] Interactive Browser Playground (`GET /page`).
+- [x] Multi-layered security defense (ML jailbreak classifier + prompt parser).
+- [x] LLM call logging, latency measurement, and dollar cost tracking.
 - [ ] Authentication and authorization.
 - [ ] Production deployment.
 

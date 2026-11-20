@@ -17,3 +17,4 @@ app.log
 # Uploads
 uploads/
 backend/uploads/
+temp_data

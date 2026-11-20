@@ -1,7 +1,9 @@
 import asyncio
 import json
 import os
+import sys
 import time
+from pathlib import Path
 
 from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -17,6 +19,18 @@ from utils.logger import logger
 from utils.prompt_parser import parse_prompt
 from utils.retriever import search
 from utils.retry import retry
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
+if str(BACKEND_DIR) not in sys.path:
+    sys.path.insert(0, str(BACKEND_DIR))
+
+_orig_cwd = os.getcwd()
+try:
+    if not (Path(_orig_cwd) / "linear_svm_model.pkl").exists() and (BACKEND_DIR / "linear_svm_model.pkl").exists():
+        os.chdir(BACKEND_DIR)
+    from ML.predict import detect_with_both
+finally:
+    os.chdir(_orig_cwd)
 
 load_dotenv()
 
@@ -119,6 +133,58 @@ async def generate(
         provider,
     )
 
+    start_time = time.perf_counter()
+
+    # 1. First classify the user query with the ML model (detect_with_both)
+    try:
+        classification = await detect_with_both(question)
+        is_benign = classification.get("final_label") == "benign" and classification.get('both_agree') == True
+        logger.info(
+            "PROMPT CLASSIFICATION | Query: %s | Result: %s",
+            question,
+            classification,
+        )
+    except Exception as e:  # noqa: BLE001
+        logger.error("Error during prompt classification: %s", e)
+        is_benign = False
+
+    # If prompt is not benign, yield "I don't know." and do not send to LLM
+    if not is_benign:
+        output_text = "I don't know."
+        yield make_event(
+            "token",
+            {"text": output_text},
+        )
+        total_time = time.perf_counter() - start_time
+        model_details = MODELS[provider]
+        data = {
+            "model_name": model_details.model_name,
+            "provider": provider,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "time_taken": total_time,
+            "input": question,
+            "output": output_text,
+            "cost_usd": 0.0,
+        }
+        doc_id = await asyncio.to_thread(
+            save_llm_call,
+            data,
+        )
+        yield make_event(
+            "saved",
+            {
+                "message": "Response generated and saved successfully",
+                "record_id": str(doc_id),
+                "time_taken": round(total_time, 2),
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "cost_usd": 0.0,
+            },
+        )
+        return
+
+    # 2. If benign, parse the prompt and proceed to retrieve context and call LLM
     clean_question = parse_prompt(question)
 
     print(clean_question)

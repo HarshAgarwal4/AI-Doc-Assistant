@@ -1,0 +1,102 @@
+[
+  {
+    "question": "What was the total revenue of Helios Meridian Technologies in FY2025, and what was the percentage increase over FY2024?",
+    "grounded_truth": "Total revenue in FY2025 was USD 202.2 million, representing an increase of 27.5% over the FY2024 revenue of USD 158.6 million."
+  },
+  {
+    "question": "Who are the co-founders of Helios Meridian Technologies, and in what year and city was the company founded?",
+    "grounded_truth": "The company was founded in 2009 in Basel, Switzerland by Dr. Ingrid Valkenburg (CEO) and Tomasz Okonkwo-Reyes (CTO)."
+  },
+  {
+    "question": "What are the four principal components that comprise the Aurora platform?",
+    "grounded_truth": "The four principal components are Aurora-DB (distributed columnar query engine), Aurora Cloud (managed multi-tenant SaaS control plane), Aurora Edge (lightweight inference gateway), and Aurora Studio (web-based notebook and dashboard environment)."
+  },
+  {
+    "question": "What is the final sunset date for the legacy Vega 1.x product line?",
+    "grounded_truth": "The final sunset date for Vega 1.x is 30 September 2026, after which extended support ends with no further exceptions."
+  },
+  {
+    "question": "What is the target general availability (GA) date for Aurora Edge?",
+    "grounded_truth": "The target general availability date for Aurora Edge is 15 July 2026 (Q2 FY2026)."
+  },
+  {
+    "question": "What was the Net Revenue Retention (NRR) and gross logo churn reported for FY2025?",
+    "grounded_truth": "Net Revenue Retention (NRR) was 118% and gross logo churn was 4.2% (representing 26 out of 612 enterprise customers lost)."
+  },
+  {
+    "question": "How many full-time equivalent (FTE) employees did Helios Meridian have at the end of FY2025, and how many offices did it operate across how many countries?",
+    "grounded_truth": "The company ended FY2025 with 1,284 full-time equivalent (FTE) employees across 14 offices in 9 countries."
+  },
+  {
+    "question": "Which product line accounted for the largest share of revenue in FY2025, and what was its dollar amount and percentage share?",
+    "grounded_truth": "Aurora Cloud (SaaS) accounted for the largest share with USD 107.4 million, representing 53.1% of total FY2025 revenue."
+  },
+  {
+    "question": "Who is the Chief Information Security Officer (CISO) and what office is he based in?",
+    "grounded_truth": "Marcus Delacroix-Hoang is the Chief Information Security Officer (CISO), based in the Austin office."
+  },
+  {
+    "question": "Which company did Helios Meridian acquire in 2023, where was it located, and what was the purchase price?",
+    "grounded_truth": "In 2023, Helios Meridian acquired Nordlicht Analytics located in Stockholm for USD 64 million."
+  },
+  {
+    "question": "What underlying messaging layer and communication protocol do Aurora platform components use to communicate?",
+    "grounded_truth": "All components communicate over the internal Meridian Bus, a gRPC-based messaging layer using Protocol Buffers v3."
+  },
+  {
+    "question": "What are the current versions of Aurora-DB and Aurora Studio according to the Version Compatibility Matrix?",
+    "grounded_truth": "The current version of Aurora-DB is 4.2.1 (released 2026-01-22) and the current version of Aurora Studio is 5.1.0 (released 2025-11-30)."
+  },
+  {
+    "question": "On the HMT-Bench-100 benchmark, what were the median (p50) and p99 query latencies on a 32-node cluster?",
+    "grounded_truth": "On a 32-node cluster, median (p50) latency fell to 24 ms and p99 latency fell to 66 ms (compared to 212 ms and 480 ms on a single node)."
+  },
+  {
+    "question": "In Aurora-DB, what is the default sketch precision for HyperLogLog++ and what standard error does it yield?",
+    "grounded_truth": "The default sketch precision is 14, which yields a standard error of approximately 0.81%."
+  },
+  {
+    "question": "What does Aurora-DB error code AQ-408 indicate and what is its remediation?",
+    "grounded_truth": "Error code AQ-408 indicates QUERY_TIMEOUT (query exceeded query_timeout_s); the remediation is to optimise the query or raise the timeout."
+  },
+  {
+    "question": "What is the cause and remediation for error code AQ-503 in Aurora-DB?",
+    "grounded_truth": "Error code AQ-503 is caused by COORDINATOR_OVERLOAD (too many concurrent queries); the remediation is to retry with exponential backoff."
+  },
+  {
+    "question": "According to the Data Retention Policy, how long are operational logs and security audit logs retained?",
+    "grounded_truth": "Operational logs are retained for 400 days (automated purge), and security audit logs are retained for 7 years in immutable storage (purge at expiry)."
+  },
+  {
+    "question": "Under access control policy SEC-POL-007, what type of multi-factor authentication is required, and what type is explicitly prohibited?",
+    "grounded_truth": "Multi-factor authentication using FIDO2 hardware keys is required, while SMS-based second factors are explicitly prohibited."
+  },
+  {
+    "question": "What is the maximum allowed session duration for just-in-time privileged access under production policy SEC-POL-007?",
+    "grounded_truth": "Just-in-time privileged access has a maximum session duration of 4 hours."
+  },
+  {
+    "question": "What was the root cause and time to resolve for the Sev-1 incident INC-2025-0112 on 2025-06-17?",
+    "grounded_truth": "The root cause was a Terraform module regression that misconfigured object-storage ACLs exposing 214 customer export files for 38 minutes; time to resolve was 9 hours 20 minutes."
+  },
+  {
+    "question": "What is the primary objective of Project Tessera, who sponsors it, and who leads it technically?",
+    "grounded_truth": "Project Tessera aims to cut infrastructure cost per transaction by 18% by FY2026 year-end; it is sponsored by CFO Priya Raghunathan and led technically by Aiko Sundström."
+  },
+  {
+    "question": "In Project Tessera Workstream A (Adaptive Tiering), when are partitions classified as cold, and what storage cost reduction was demonstrated?",
+    "grounded_truth": "Partitions not queried for 21 days are classified as cold and automatically moved from NVMe to object storage, showing a 31% storage cost reduction with a 4.2% increase in p99 latency for cold queries."
+  },
+  {
+    "question": "What four peer-reviewed research papers did Helios Meridian publish in FY2025?",
+    "grounded_truth": "The four peer-reviewed papers are: (1) Learned Partition Pruning for Columnar Engines (VLDB 2025); (2) Sketch Merging under Skewed Workloads (SIGMOD 2025); (3) Tail-Latency Hedging in Multi-Tenant Query Services (EuroSys 2025); and (4) Cost-Aware Autoscaling with Quantile Forecasts (SoCC 2025)."
+  },
+  {
+    "question": "Which risks in the Risk Register met the threshold of 15 or higher for escalation to the Board Audit Committee?",
+    "grounded_truth": "Risks R-02 ('Vega 1.x customers fail to migrate before sunset', score 16, owned by VP Sales) and R-03 ('Key-person dependency on CTO and CEO', score 15, owned by CEO)."
+  },
+  {
+    "question": "What was the date and reason for Revision 2 of document HMT-AR-2025-0114 in the document revision history?",
+    "grounded_truth": "Revision 2 was authored on 2026-05-06 by the Office of the CTO to correct the Vega 1.x sunset date from 31 December 2026 to 30 September 2026."
+  }
+]

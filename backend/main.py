@@ -1,6 +1,7 @@
 import hashlib
 from pathlib import Path
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import (
     BackgroundTasks,
@@ -16,7 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from sqlmodel import Session, select
 
-from app.models.chunkModel import SearchResult
+from app.models.chunkModel import Chunk, SearchResult
 from app.models.docModel import Document
 from app.models.llm import LLMRequestModel
 from app.models.resumeModel import ResumeData
@@ -24,6 +25,7 @@ from database.database import get_session
 from utils.llm import generate
 from utils.logger import logger
 from utils.process_doc import process_document
+from utils.prompt_parser import parse_prompt
 from utils.resume import extract_resume_data, extract_text
 from utils.retriever import search
 
@@ -176,6 +178,41 @@ def get_documents(
 ):
     documents = session.exec(select(Document)).all()
     return documents
+
+@app.delete("/documents/{id}", status_code=status.HTTP_200_OK)
+def delete_document(
+    id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+):
+    document = session.get(Document, id)
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+    file_path = UPLOAD_DIR / document.filename
+    if file_path.exists():
+        file_path.unlink()
+    session.delete(document)
+    session.commit()
+    return {"message": "Document deleted successfully"}
+
+@app.get("/chunks/{id}", response_model=list[Chunk], status_code=status.HTTP_200_OK)
+def get_document_chunks(
+    id: UUID,
+    session: Annotated[Session, Depends(get_session)],
+):
+    document = session.get(Document, id)
+    if not document:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Document not found",
+        )
+    chunks = session.exec(select(Chunk).where(Chunk.document_id == id)).all()
+    return [
+        chunk.model_dump(exclude={"embedding"})
+        for chunk in chunks
+    ]
 
 
 @app.get(
@@ -537,18 +574,6 @@ async function askQuestion() {
                 output.scrollTop = output.scrollHeight;
             }
 
-            else if (event === "pages") {
-                const pages = Array.isArray(data) ? data : (data.pages || data.page || []);
-                const pageList = Array.isArray(pages) ? [...new Set(pages)].filter(x => x !== null && x !== undefined).join(", ") : pages;
-                docPages.innerHTML = `<strong>Pages:</strong> ${escapeHTML(pageList || "None")}`;
-            }
-
-            else if (event === "filename") {
-                const files = Array.isArray(data) ? data : (data.filename || data.filenames || data.files || []);
-                const fileList = Array.isArray(files) ? [...new Set(files)].filter(Boolean).join(", ") : files;
-                docFiles.innerHTML = `<strong>Filename:</strong> ${escapeHTML(fileList || "None")}`;
-            }
-
             else if (event === "saved") {
                 saved = true;
 
@@ -664,8 +689,10 @@ async def stream_response(first_chunk, generator):
 @app.post('/ask')
 async def ask_llm(req: LLMRequestModel):
 
+    clean_question = parse_prompt(req.question)
+
     generator = generate(
-        question=req.question,
+        question=clean_question,
         provider=req.provider,
     )
 
@@ -677,6 +704,9 @@ async def ask_llm(req: LLMRequestModel):
             status_code=504,
             detail="LLM request timed out",
         )
+
+    except HTTPException:
+        raise
 
     except Exception:  # noqa: BLE001
         logger.exception("LLM INITIALIZATION FAILED")

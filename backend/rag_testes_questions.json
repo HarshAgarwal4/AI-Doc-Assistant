@@ -9,7 +9,8 @@
       "Heading: 3.2 Revenue by Product Line\n\nTable 5: Revenue by product line. Shares may not sum exactly due to rounding. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\n-34.6%. Vega 1.x (legacy, sunsetting), Share FY2025 = 6.9%. Professional services, FY2024 (USD M) = 12.6. Professional services, FY2025 (USD M) = 20.3. Professional services, YoY = +61.1%. Professional services, Share FY2025 = 10.0%. Nordlicht Analytics, FY2024 (USD M) = 5.4. Nordlicht Analytics, FY2025 (USD M) = 15.6. Nordlicht Analytics, YoY = +188.9%. Nordlicht Analytics, Share FY2025 = 7.7%. Total, FY2024 (USD M) = 158.6. Total, FY2025 (USD M) = 202.2. Total, YoY = +27.5%. Total, Share FY2025 = 100.0% |",
       "Heading: 1.1 FY2025 Highlights at a Glance\n\nTable 1: Headline financial and operational metrics. pp = percentage points. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\n+16.5%. Customers (enterprise), FY2024 = 612. Customers (enterprise), FY2025 = 731. Customers (enterprise), Change = +19.4%. Net revenue retention, FY2024 = 109%. Net revenue retention, FY2025 = 118%. Net revenue retention, Change = +9 pp. Gross logo churn, FY2024 = 6.8%. Gross logo churn, FY2025 = 4.2%. Gross logo churn, Change = -2.6 pp. Security incidents (Sev-1), FY2024 = 3. Security incidents (Sev-1), FY2025 = 1. Security incidents (Sev-1), Change = -2 |"
     ],
-    "ground_truth": "Total revenue in FY2025 was USD 202.2 million, representing an increase of 27.5% over the FY2024 revenue of USD 158.6 million."
+    "ground_truth": "Total revenue in FY2025 was USD 202.2 million, representing an increase of 27.5% over the FY2024 revenue of USD 158.6 million.",
+    "status": "success"
   },
   {
     "question": "Who are the co-founders of Helios Meridian Technologies, and in what year and city was the company founded?",
@@ -21,7 +22,8 @@
       "Milestones\n- 2014: Company founded; first prototype named Pilot-0 demonstrated.\n- 2016: Series A funding of 4.5 million euros.\n- 2018: First commercial sale of the ZX-100 to a logistics firm in Hamburg.\n- 2021: Series B funding of 31 million euros led by Nordlicht Capital.\n- 2023: Launch of the ZX-200 series.\n- 2025: Opened the Singapore office; reached 410 customers.",
       "Heading: 2.1 History and Milestones\n\nTable 2: Company timeline, 2009 to 2025. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\n| Table 2: Company timeline, 2009 to 2025. |\n| 2009, Milestone = Founding. 2009, Detail = Basel, Switzerland; 3 founders-employees; seed capital CHF 450,000. 2013, Milestone = Vega 1.0 released. 2013, Detail = First commercial distributed query engine; 11 launch customers. 2015, Milestone = Series A. 2015, Detail = USD 12 million led by Alpenglow Ventures. 2016, Milestone = Zurich HQ move. 2016, Detail = Headquarters relocated from Basel to Zurich. 2018, Milestone = US reorganisation. 2018, Detail = Delaware parent formed; Austin, Texas office opened. 2020, Milestone = Aurora-DB launched. 2020, Detail = Cloud-native successor to Vega; Vega 2.0 deprecated within 14 months. 2021, Milestone = IPO. 2021, Detail = Listed on SIX Swiss Exchange under ticker HMTX at CHF 38.00 per share. 2023, Milestone = Acquisition. 2023, Detail = Acquired Nordlicht Analytics (Stockholm) for USD 64 million. 2024, Milestone = Aurora Cloud GA. 2024, Detail = Fully managed SaaS offering generally available on 12 March 2024. 2025, Milestone ="
     ],
-    "ground_truth": "The company was founded in 2009 in Basel, Switzerland by Dr. Ingrid Valkenburg (CEO) and Tomasz Okonkwo-Reyes (CTO)."
+    "ground_truth": "The company was founded in 2009 in Basel, Switzerland by Dr. Ingrid Valkenburg (CEO) and Tomasz Okonkwo-Reyes (CTO).",
+    "status": "success"
   },
   {
     "question": "What are the four principal components that comprise the Aurora platform?",
@@ -33,7 +35,8 @@
       "Heading: 4.2 Version Compatibility Matrix\n\nTable 11 of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Headers:\n\n| Component                  | Current version   | Min. supported   | Release date   | End of support   |\n|----------------------------|-------------------|------------------|----------------|------------------|\n\nTable Data:\n\n| Aurora-DB, Current version = 4.2.1. Aurora-DB, Min. supported = 3.8.0. Aurora-DB, Release date = 2026-01-22. Aurora-DB, End of support = 2029-01-22. Aurora Cloud control plane, Current version = 2026.3. Aurora Cloud control plane, Min. supported = n/a (rolling). Aurora Cloud control plane, Release date = 2026-03-04. Aurora Cloud control plane, End of support = n/a. Aurora Edge, Current version = 0.9.4-beta. Aurora Edge, Min. supported = 0.9.0. Aurora Edge, Release date = 2026-02-17. Aurora Edge, End of support = GA pending. Aurora Studio, Current version = 5.1.0. Aurora Studio, Min. supported = 4.5.0. Aurora Studio, Release date = 2025-11-30. Aurora Studio, End of support = 2028-11-30. Vega (legacy), Current version = 1.9.7. Vega (legacy), Min. supported = 1.9.0. Vega",
       "1.2 Strategic Priorities for FY2026\n- 1 Complete the sunset of Vega 1.x by 30 September 2026; extended support ends on that date with no further exceptions.\n- 2 Launch Aurora Edge, a lightweight inference gateway, in general availability by Q2 FY2026 (target date: 15 July 2026).\n- 3 Achieve ISO/IEC 27701 certification for privacy information management by the end of Q3 FY2026.\n- 4 Reduce cloud infrastructure cost per transaction by 18% through the Project Tessera optimization programme.\n- 5 Open a new engineering hub in Lisbon, Portugal, with an initial headcount of 60."
     ],
-    "ground_truth": "The four principal components are Aurora-DB (distributed columnar query engine), Aurora Cloud (managed multi-tenant SaaS control plane), Aurora Edge (lightweight inference gateway), and Aurora Studio (web-based notebook and dashboard environment)."
+    "ground_truth": "The four principal components are Aurora-DB (distributed columnar query engine), Aurora Cloud (managed multi-tenant SaaS control plane), Aurora Edge (lightweight inference gateway), and Aurora Studio (web-based notebook and dashboard environment).",
+    "status": "success"
   },
   {
     "question": "What is the final sunset date for the legacy Vega 1.x product line?",
@@ -45,7 +48,8 @@
       "3.1 Revenue Analysis\nTotal revenue for FY2025 was USD 202.2 million, composed of quarterly revenue of USD 41.2M (Q1), 46.8M (Q2), 52.3M (Q3) and 61.9M (Q4). Q4 was the strongest quarter in company history, boosted by USD 6.1 million of one-time licence true-ups from the Vega 1.x sunset programme 1 .\nFigure 1: Quarterly Revenue, FY2024 vs FY2025\nFigure 1 shows year-over-year quarterly growth ranging from 22.9% (Q1) to 30.6% (Q4).",
       "1. Executive Summary\nHelios Meridian Technologies, Inc. (\"HMT\" or \"the Company\") closed fiscal year 2025 (FY2025) with total revenue of USD 202.2 million, an increase of 27.5% over FY2024 revenue of USD 158.6 million. Operating margin expanded from 11.8% to 15.4%, driven primarily by the migration of legacy on-premises customers to the Aurora Cloud platform and by the retirement of the Vega 1.x product line. The Company ended the year with 1,284 full-time employees across 14 offices in 9 countries.\nKey takeaway: The Aurora Cloud subscription business surpassed 50% of total revenue for the first time, reaching 53.1% (USD 107.4 million) in Q4 FY2025 on a trailing basis. Net revenue retention (NRR) was 118%, and gross logo churn fell to 4.2%."
     ],
-    "ground_truth": "The final sunset date for Vega 1.x is 30 September 2026, after which extended support ends with no further exceptions."
+    "ground_truth": "The final sunset date for Vega 1.x is 30 September 2026, after which extended support ends with no further exceptions.",
+    "status": "success"
   },
   {
     "question": "What is the target general availability (GA) date for Aurora Edge?",
@@ -57,7 +61,8 @@
       "4.1 Aurora Platform Overview\nThe Aurora platform consists of four principal components: Aurora-DB (distributed columnar query engine), Aurora Cloud (managed multi-tenant SaaS control plane), Aurora Edge (lightweight inference gateway, in beta), and Aurora Studio (web-based notebook and dashboard environment). All components communicate over the internal Meridian Bus, a gRPC-based messaging layer using Protocol Buffers v3.",
       "Heading: 5.1 Compliance Certifications\n\nTable 11: Compliance status as of 31 March 2026. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\nValid through = 2026-12-31. FedRAMP Moderate, Scope = Aurora Cloud (US Gov). FedRAMP Moderate, Status = Not started. FedRAMP Moderate, Auditor = n/a. FedRAMP Moderate, Valid through = Not planned for FY2026 |"
     ],
-    "ground_truth": "The target general availability date for Aurora Edge is 15 July 2026 (Q2 FY2026)."
+    "ground_truth": "The target general availability date for Aurora Edge is 15 July 2026 (Q2 FY2026).",
+    "status": "success"
   },
   {
     "question": "What was the Net Revenue Retention (NRR) and gross logo churn reported for FY2025?",
@@ -69,7 +74,8 @@
       "1. Executive Summary\nHelios Meridian Technologies, Inc. (\"HMT\" or \"the Company\") closed fiscal year 2025 (FY2025) with total revenue of USD 202.2 million, an increase of 27.5% over FY2024 revenue of USD 158.6 million. Operating margin expanded from 11.8% to 15.4%, driven primarily by the migration of legacy on-premises customers to the Aurora Cloud platform and by the retirement of the Vega 1.x product line. The Company ended the year with 1,284 full-time employees across 14 offices in 9 countries.\nKey takeaway: The Aurora Cloud subscription business surpassed 50% of total revenue for the first time, reaching 53.1% (USD 107.4 million) in Q4 FY2025 on a trailing basis. Net revenue retention (NRR) was 118%, and gross logo churn fell to 4.2%.",
       "Heading: 1.1 FY2025 Highlights at a Glance\n\nTable 1: Headline financial and operational metrics. pp = percentage points. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\n| Table 1: Headline financial and operational metrics. pp = percentage points. |\n| Total revenue (USD M), FY2024 = 158.6. Total revenue (USD M), FY2025 = 202.2. Total revenue (USD M), Change = +27.5%. Operating income (USD M), FY2024 = 18.7. Operating income (USD M), FY2025 = 31.1. Operating income (USD M), Change = +66.3%. Operating margin, FY2024 = 11.8%. Operating margin, FY2025 = 15.4%. Operating margin, Change = +3.6 pp. Aurora Cloud ARR (USD M), FY2024 = 71.0. Aurora Cloud ARR (USD M), FY2025 = 107.4. Aurora Cloud ARR (USD M), Change = +51.3%. Employees (FTE), FY2024 = 1,102. Employees (FTE), FY2025 = 1,284. Employees (FTE), Change ="
     ],
-    "ground_truth": "Net Revenue Retention (NRR) was 118% and gross logo churn was 4.2% (representing 26 out of 612 enterprise customers lost)."
+    "ground_truth": "Net Revenue Retention (NRR) was 118% and gross logo churn was 4.2% (representing 26 out of 612 enterprise customers lost).",
+    "status": "success"
   },
   {
     "question": "How many full-time equivalent (FTE) employees did Helios Meridian have at the end of FY2025, and how many offices did it operate across how many countries?",
@@ -81,7 +87,8 @@
       "All Headings of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\n- HELIOS MERIDIAN TECHNOLOGIES (Page 1)\n- Table of Contents (Page 2)\n- 1. Executive Summary (Page 4)\n- 1.1 FY2025 Highlights at a Glance (Page 4)\n- 1.2 Strategic Priorities for FY2026 (Page 4)\n- 2. Company Overview (Page 5)\n- 2.1 History and Milestones (Page 5)\n- 2.2 Leadership Team (Page 5)\n- 2.3 Global Footprint (Page 5)\n- 3. Financial Performance (Page 7)\n- 3.1 Revenue Analysis (Page 7)\n- 3.2 Revenue by Product Line (Page 7)\n- 3.3 Income Statement Summary (Page 7)\n- 3.4 Regional Revenue and Currency Exposure (Page 8)\n- 3.5 Key SaaS Metrics and Definitions (Page 8)\n- 4. Product and Platform Architecture (Page 9)\n- 4.1 Aurora Platform Overview (Page 9)\n- 4.2 Version Compatibility Matrix (Page 9)\n- 4.3 Performance Benchmarks (Page 9)\n- 4.4 Query Example and Configuration (Page 9)",
       "Heading: 2.2 Leadership Team\n\nTable 3: Executive leadership as of 31 March 2026. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\nYusuf Adeyemi-Clarke, Joined = 2021. Dr. Yusuf Adeyemi-Clarke, Location = Zurich |"
     ],
-    "ground_truth": "The company ended FY2025 with 1,284 full-time equivalent (FTE) employees across 14 offices in 9 countries."
+    "ground_truth": "The company ended FY2025 with 1,284 full-time equivalent (FTE) employees across 14 offices in 9 countries.",
+    "status": "success"
   },
   {
     "question": "Which product line accounted for the largest share of revenue in FY2025, and what was its dollar amount and percentage share?",
@@ -93,7 +100,8 @@
       "3.4 Regional Revenue and Currency Exposure\nRevenue is reported in US dollars. Approximately 38% of revenue is denominated in euros, 14% in Swiss francs, 9% in Swedish kronor and the remainder in USD or other currencies. A hypothetical 10% adverse move in EUR/USD would have reduced FY2025 revenue by roughly USD 7.7 million. The Company hedges up to 60% of forecast net euro exposure using 12-month forward contracts.",
       "1. Executive Summary\nHelios Meridian Technologies, Inc. (\"HMT\" or \"the Company\") closed fiscal year 2025 (FY2025) with total revenue of USD 202.2 million, an increase of 27.5% over FY2024 revenue of USD 158.6 million. Operating margin expanded from 11.8% to 15.4%, driven primarily by the migration of legacy on-premises customers to the Aurora Cloud platform and by the retirement of the Vega 1.x product line. The Company ended the year with 1,284 full-time employees across 14 offices in 9 countries.\nKey takeaway: The Aurora Cloud subscription business surpassed 50% of total revenue for the first time, reaching 53.1% (USD 107.4 million) in Q4 FY2025 on a trailing basis. Net revenue retention (NRR) was 118%, and gross logo churn fell to 4.2%."
     ],
-    "ground_truth": "Aurora Cloud (SaaS) accounted for the largest share with USD 107.4 million, representing 53.1% of total FY2025 revenue."
+    "ground_truth": "Aurora Cloud (SaaS) accounted for the largest share with USD 107.4 million, representing 53.1% of total FY2025 revenue.",
+    "status": "success"
   },
   {
     "question": "Who is the Chief Information Security Officer (CISO) and what office is he based in?",
@@ -105,7 +113,8 @@
       "5.3 Access Control Requirements\nAll personnel with production access must satisfy the following requirements (policy SEC-POL-007, effective 1 July 2025):\n- 1 Multi-factor authentication using FIDO2 hardware keys; SMS-based second factors are prohibited.\n- 2 Just-in-time privileged access with a maximum session duration of 4 hours.\n- 3 Quarterly access reviews completed within 10 business days of quarter end.\n- 4 Production database access is read-only by default; write access requires two-person approval.\n- 5 Offboarding: all access revoked within 1 hour of employment termination.\nException: Break-glass emergency accounts may bypass the 4-hour limit but every use triggers an automatic Sev-2 review and must be reported to the CISO within 24 hours.",
       "6. Security and Compliance\nOrbitex treats customer operational data as confidential. This section summarises the technical and organisational controls in place."
     ],
-    "ground_truth": "Marcus Delacroix-Hoang is the Chief Information Security Officer (CISO), based in the Austin office."
+    "ground_truth": "Marcus Delacroix-Hoang is the Chief Information Security Officer (CISO), based in the Austin office.",
+    "status": "success"
   },
   {
     "question": "Which company did Helios Meridian acquire in 2023, where was it located, and what was the purchase price?",
@@ -117,7 +126,8 @@
       "All Headings of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\n- HELIOS MERIDIAN TECHNOLOGIES (Page 1)\n- Table of Contents (Page 2)\n- 1. Executive Summary (Page 4)\n- 1.1 FY2025 Highlights at a Glance (Page 4)\n- 1.2 Strategic Priorities for FY2026 (Page 4)\n- 2. Company Overview (Page 5)\n- 2.1 History and Milestones (Page 5)\n- 2.2 Leadership Team (Page 5)\n- 2.3 Global Footprint (Page 5)\n- 3. Financial Performance (Page 7)\n- 3.1 Revenue Analysis (Page 7)\n- 3.2 Revenue by Product Line (Page 7)\n- 3.3 Income Statement Summary (Page 7)\n- 3.4 Regional Revenue and Currency Exposure (Page 8)\n- 3.5 Key SaaS Metrics and Definitions (Page 8)\n- 4. Product and Platform Architecture (Page 9)\n- 4.1 Aurora Platform Overview (Page 9)\n- 4.2 Version Compatibility Matrix (Page 9)\n- 4.3 Performance Benchmarks (Page 9)\n- 4.4 Query Example and Configuration (Page 9)",
       "HELIOS MERIDIAN TECHNOLOGIES\nFY2025 Annual Technical & Operations Report Fiscal year ended 31 March 2026\nDocument ID: HMT-AR-2025-0114 | Revision 3 | Classification: Internal\nPrepared by: Office of the CTO, Zurich, Switzerland\nThis is a fictional, synthetic document created to evaluate retrieval-augmented generation (RAG) systems."
     ],
-    "ground_truth": "In 2023, Helios Meridian acquired Nordlicht Analytics located in Stockholm for USD 64 million."
+    "ground_truth": "In 2023, Helios Meridian acquired Nordlicht Analytics located in Stockholm for USD 64 million.",
+    "status": "success"
   },
   {
     "question": "What underlying messaging layer and communication protocol do Aurora platform components use to communicate?",
@@ -129,7 +139,8 @@
       "Software platform\nAll robots are managed through OrbiCore, a fleet-management platform. The current release is OrbiCore 5.4, which supports up to 250 robots per site. Version 4.x does not support the ZX-200 Pro. OrbiCore exposes a REST API on port 8443 and publishes robot telemetry every 2 seconds by default.",
       "Heading: 4.4 Query Example and Configuration\n\nTable 9: Selected Aurora-DB configuration parameters. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\nDefault = 1.2. tls_min_version, Recommended (prod) = 1.3. tls_min_version, Notes = TLS 1.3 mandatory for Aurora Cloud from 2026-06-01 |"
     ],
-    "ground_truth": "All components communicate over the internal Meridian Bus, a gRPC-based messaging layer using Protocol Buffers v3."
+    "ground_truth": "All components communicate over the internal Meridian Bus, a gRPC-based messaging layer using Protocol Buffers v3.",
+    "status": "success"
   },
   {
     "question": "What are the current versions of Aurora-DB and Aurora Studio according to the Version Compatibility Matrix?",
@@ -141,7 +152,8 @@
       "Heading: 4.2 Version Compatibility Matrix\n\nTable 11 of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Headers:\n\n| Component                  | Current version   | Min. supported   | Release date   | End of support   |\n|----------------------------|-------------------|------------------|----------------|------------------|\n\nTable Data:\n\n(legacy), Release date = 2022-06-09. Vega (legacy), End of support = 2026-09-30. Meridian SDK (Python), Current version = 3.4.2. Meridian SDK (Python), Min. supported = 3.0.0. Meridian SDK (Python), Release date = 2026-02-02. Meridian SDK (Python), End of support = 2028-02-02. Meridian SDK (Java), Current version = 3.4.0. Meridian SDK (Java), Min. supported = 3.0.0. Meridian SDK (Java), Release date = 2026-01-28. Meridian SDK (Java), End of support = 2028-01-28 |\n\nTable 8: Product versions and support windows.",
       "Heading: 4.5 Error Code Reference\n\nTable 10: Common Aurora-DB error codes. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\nTable schema changed mid-query. AQ-619, Remediation = Re-run query |"
     ],
-    "ground_truth": "The current version of Aurora-DB is 4.2.1 (released 2026-01-22) and the current version of Aurora Studio is 5.1.0 (released 2025-11-30)."
+    "ground_truth": "The current version of Aurora-DB is 4.2.1 (released 2026-01-22) and the current version of Aurora Studio is 5.1.0 (released 2025-11-30).",
+    "status": "success"
   },
   {
     "question": "On the HMT-Bench-100 benchmark, what were the median (p50) and p99 query latencies on a 32-node cluster?",
@@ -153,7 +165,8 @@
       "Heading: Support tiers\n\nTable 8 of RAG_Test_Document_10_pages.pdf\n\nTable Headers:\n\n| Tier     | Response time     | Hours                    | Included with         |\n|----------|-------------------|--------------------------|-----------------------|\n\nTable Data:\n\nStandard, Response time = Next business day. Standard, Hours = Mon-Fri, 08:00-18:00 CET. Standard, Included with = All robots. Priority, Response time = 4 hours. Priority, Hours = Mon-Sat, 06:00-22:00 CET. Priority, Included with = Care Plus. Critical, Response time = 30 minutes. Critical, Hours = 24/7. Critical, Included with = Sites with 50+ robots",
       "6.1.1 Workstream A: Adaptive Tiering\nAutomatically moves cold partitions (not queried for 21 days) from NVMe to object storage with a transparent read-through cache. Early results show 31% storage cost reduction with a 4.2% increase in p99 latency for cold queries."
     ],
-    "ground_truth": "On a 32-node cluster, median (p50) latency fell to 24 ms and p99 latency fell to 66 ms (compared to 212 ms and 480 ms on a single node)."
+    "ground_truth": "On a 32-node cluster, median (p50) latency fell to 24 ms and p99 latency fell to 66 ms (compared to 212 ms and 480 ms on a single node).",
+    "status": "success"
   },
   {
     "question": "In Aurora-DB, what is the default sketch precision for HyperLogLog++ and what standard error does it yield?",
@@ -165,7 +178,8 @@
       "Heading: 4.5 Error Code Reference\n\nTable 10: Common Aurora-DB error codes. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\nTable schema changed mid-query. AQ-619, Remediation = Re-run query |",
       "Heading: 4.5 Error Code Reference\n\nTable 10: Common Aurora-DB error codes. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\n| Table 10: Common Aurora-DB error codes. |\n| AQ-101, Name = SYNTAX_ERROR. AQ-101, Cause = Invalid SQL syntax. AQ-101, Remediation = Check statement against dialect reference. AQ-208, Name = QUOTA_EXCEEDED. AQ-208, Cause = Tenant storage quota exceeded. AQ-208, Remediation = Increase quota or delete data. AQ-317, Name = SHARD_UNAVAILABLE. AQ-317, Cause = Replica set below quorum. AQ-317, Remediation = Check node health; contact support if persistent. AQ-408, Name = QUERY_TIMEOUT. AQ-408, Cause = Query exceeded query_timeout_s. AQ-408, Remediation = Optimise query or raise timeout. AQ-503, Name = COORDINATOR_OVERLOAD. AQ-503, Cause = Too many concurrent queries. AQ-503, Remediation = Retry with exponential backoff. AQ-619, Name = SCHEMA_DRIFT. AQ-619, Cause ="
     ],
-    "ground_truth": "The default sketch precision is 14, which yields a standard error of approximately 0.81%."
+    "ground_truth": "The default sketch precision is 14, which yields a standard error of approximately 0.81%.",
+    "status": "success"
   },
   {
     "question": "What does Aurora-DB error code AQ-408 indicate and what is its remediation?",
@@ -177,7 +191,8 @@
       "Heading: 4.4 Query Example and Configuration\n\nTable 9: Selected Aurora-DB configuration parameters. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\nDefault = 1.2. tls_min_version, Recommended (prod) = 1.3. tls_min_version, Notes = TLS 1.3 mandatory for Aurora Cloud from 2026-06-01 |",
       "4.1 Aurora Platform Overview\nThe Aurora platform consists of four principal components: Aurora-DB (distributed columnar query engine), Aurora Cloud (managed multi-tenant SaaS control plane), Aurora Edge (lightweight inference gateway, in beta), and Aurora Studio (web-based notebook and dashboard environment). All components communicate over the internal Meridian Bus, a gRPC-based messaging layer using Protocol Buffers v3."
     ],
-    "ground_truth": "Error code AQ-408 indicates QUERY_TIMEOUT (query exceeded query_timeout_s); the remediation is to optimise the query or raise the timeout."
+    "ground_truth": "Error code AQ-408 indicates QUERY_TIMEOUT (query exceeded query_timeout_s); the remediation is to optimise the query or raise the timeout.",
+    "status": "success"
   },
   {
     "question": "What is the cause and remediation for error code AQ-503 in Aurora-DB?",
@@ -189,7 +204,8 @@
       "Heading: 4.4 Query Example and Configuration\n\nTable 9: Selected Aurora-DB configuration parameters. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\nDefault = 1.2. tls_min_version, Recommended (prod) = 1.3. tls_min_version, Notes = TLS 1.3 mandatory for Aurora Cloud from 2026-06-01 |",
       "Heading: 5.4 Incident Log\n\nTable 13: Selected notable incidents. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\n| Table 13: Selected notable incidents. |\n| INC-2025-0112, Date = 2025-06-17. INC-2025-0112, Sev = Sev-1. INC-2025-0112, Summary = Misconfigured object-storage ACL exposed 214 customer export files for 38 minutes. No evidence of access by third parties. Root cause: Terraform module regression.. INC-2025-0112, Time to resolve = 9 h 20 min. INC-2025-0187, Date = 2025-08-03. INC-2025-0187, Sev = Sev-2. INC-2025-0187, Summary = Control plane outage in eu-central region affecting 22% of tenants for 47 minutes.. INC-2025-0187, Time to resolve = 47 min. INC-2025-0233, Date = 2025-09-29. INC-2025-0233, Sev = Sev-2. INC-2025-0233, Summary = Phishing campaign targeted 31 employees; 2 credentials entered; FIDO2 prevented account"
     ],
-    "ground_truth": "Error code AQ-503 is caused by COORDINATOR_OVERLOAD (too many concurrent queries); the remediation is to retry with exponential backoff."
+    "ground_truth": "Error code AQ-503 is caused by COORDINATOR_OVERLOAD (too many concurrent queries); the remediation is to retry with exponential backoff.",
+    "status": "success"
   },
   {
     "question": "According to the Data Retention Policy, how long are operational logs and security audit logs retained?",
@@ -201,7 +217,8 @@
       "Data breach policy\nIn the event of a confirmed personal data breach, Orbitex notifies affected customers within 48 hours and the relevant supervisory authority within 72 hours.",
       "Access control\nEmployee access to production systems requires multi-factor authentication and is reviewed every 90 days. Support engineers may access a customer site only with a time-limited token that expires after 8 hours."
     ],
-    "ground_truth": "Operational logs are retained for 400 days (automated purge), and security audit logs are retained for 7 years in immutable storage (purge at expiry)."
+    "ground_truth": "Operational logs are retained for 400 days (automated purge), and security audit logs are retained for 7 years in immutable storage (purge at expiry).",
+    "status": "success"
   },
   {
     "question": "Under access control policy SEC-POL-007, what type of multi-factor authentication is required, and what type is explicitly prohibited?",
@@ -213,7 +230,8 @@
       "Heading: 5.1 Compliance Certifications\n\nTable 11: Compliance status as of 31 March 2026. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\n| Table 11: Compliance status as of 31 March 2026. |\n| SOC 2 Type II, Scope = Aurora Cloud. SOC 2 Type II, Status = Issued (no exceptions). SOC 2 Type II, Auditor = Brightwater & Co.. SOC 2 Type II, Valid through = 2026-12-31. ISO/IEC 27001, Scope = Company-wide ISMS. ISO/IEC 27001, Status = Certified. ISO/IEC 27001, Auditor = Nordic Cert AB. ISO/IEC 27001, Valid through = 2027-05-18. ISO/IEC 27701, Scope = Privacy (PIMS). ISO/IEC 27701, Status = In progress. ISO/IEC 27701, Auditor = Nordic Cert AB. ISO/IEC 27701, Valid through = Target: Q3 FY2026. GDPR, Scope = EU personal data. GDPR, Status = Compliant (self-assessed). GDPR, Auditor = n/a. GDPR, Valid through = Continuous. HIPAA, Scope = Aurora Cloud (BAA tier). HIPAA, Status = Compliant. HIPAA, Auditor = Brightwater & Co.. HIPAA,",
       "6. Security and Compliance\nOrbitex treats customer operational data as confidential. This section summarises the technical and organisational controls in place."
     ],
-    "ground_truth": "Multi-factor authentication using FIDO2 hardware keys is required, while SMS-based second factors are explicitly prohibited."
+    "ground_truth": "Multi-factor authentication using FIDO2 hardware keys is required, while SMS-based second factors are explicitly prohibited.",
+    "status": "success"
   },
   {
     "question": "What is the maximum allowed session duration for just-in-time privileged access under production policy SEC-POL-007?",
@@ -225,7 +243,8 @@
       "7. HR Policies\nThese policies apply to full-time employees in Portugal. Rules for other countries may differ.",
       "5.4 Incident Log\nThe Company recorded 47 security incidents in FY2025 (FY2024: 61). Only one was classified Sev-1. Severity is defined as: Sev-1 = confirmed customer data exposure or total outage exceeding 60 minutes; Sev-2 = partial outage or contained policy violation; Sev-3 = minor event with no customer impact."
     ],
-    "ground_truth": "Just-in-time privileged access has a maximum session duration of 4 hours."
+    "ground_truth": "Just-in-time privileged access has a maximum session duration of 4 hours.",
+    "status": "success"
   },
   {
     "question": "What was the root cause and time to resolve for the Sev-1 incident INC-2025-0112 on 2025-06-17?",
@@ -237,7 +256,8 @@
       "Escalation\nIf a Standard ticket is not resolved within 3 business days, it is escalated automatically to a Tier 2 engineer. Tickets involving a safety incident are always treated as Critical, regardless of contract.",
       "Heading: Incident log (selected)\n\nTable 12 of RAG_Test_Document_10_pages.pdf\n\nTable Headers:\n\n| Date        | Incident                            | Impact                               | Resolution                                  |\n|-------------|-------------------------------------|--------------------------------------|---------------------------------------------|\n\nTable Data:\n\n12 Feb 2025, Incident = OrbiCore API outage. 12 Feb 2025, Impact = 47 minutes, 18 customers. 12 Feb 2025, Resolution = Faulty load balancer replaced. 3 Jul 2025, Incident = Battery recall, ZX-200 batch B-7731. 3 Jul 2025, Impact = 212 units. 3 Jul 2025, Resolution = Cells swapped free of charge by 30 Sep 2025. 19 Nov 2025, Incident = Firmware 5.3.1 navigation bug. 19 Nov 2025, Impact = Robots paused for 2 hours in 6 sites. 19 Nov 2025, Resolution = Hotfix 5.3.2 released next day"
     ],
-    "ground_truth": "The root cause was a Terraform module regression that misconfigured object-storage ACLs exposing 214 customer export files for 38 minutes; time to resolve was 9 hours 20 minutes."
+    "ground_truth": "The root cause was a Terraform module regression that misconfigured object-storage ACLs exposing 214 customer export files for 38 minutes; time to resolve was 9 hours 20 minutes.",
+    "status": "success"
   },
   {
     "question": "What is the primary objective of Project Tessera, who sponsors it, and who leads it technically?",
@@ -249,7 +269,8 @@
       "Targets for 2026\n- Revenue target: 85 million euros.\n- Deliver 1,900 robots.\n- Reach ISO 45001 certification in Q4.\n- Launch OrbiCore 6.0 in September 2026.",
       "Heading: 2.2 Leadership Team\n\nTable 3: Executive leadership as of 31 March 2026. of Helios_Meridian_FY2025_Annual_Technical_Report.pdf\n\nTable Data:\n\nYusuf Adeyemi-Clarke, Joined = 2021. Dr. Yusuf Adeyemi-Clarke, Location = Zurich |"
     ],
-    "ground_truth": "Project Tessera aims to cut infrastructure cost per transaction by 18% by FY2026 year-end; it is sponsored by CFO Priya Raghunathan and led technically by Aiko Sundström."
+    "ground_truth": "Project Tessera aims to cut infrastructure cost per transaction by 18% by FY2026 year-end; it is sponsored by CFO Priya Raghunathan and led technically by Aiko Sundström.",
+    "status": "success"
   },
   {
     "question": "In Project Tessera Workstream A (Adaptive Tiering), when are partitions classified as cold, and what storage cost reduction was demonstrated?",
@@ -261,7 +282,8 @@
       "6.1.3 Workstream C: Compression Upgrade\nMigrates default compression from LZ4 to zstd level 3, trading 9% additional CPU for a 27% reduction in stored bytes.",
       "6.1.2 Workstream B: Compute Right-Sizing\nUses a gradient-boosted regression model to predict per-tenant CPU demand 15 minutes ahead and scale executors accordingly. The model achieved a mean absolute percentage error (MAPE) of 6.3% on the held-out set. Savings are estimated at USD 2.9 million annually."
     ],
-    "ground_truth": "Partitions not queried for 21 days are classified as cold and automatically moved from NVMe to object storage, showing a 31% storage cost reduction with a 4.2% increase in p99 latency for cold queries."
+    "ground_truth": "Partitions not queried for 21 days are classified as cold and automatically moved from NVMe to object storage, showing a 31% storage cost reduction with a 4.2% increase in p99 latency for cold queries.",
+    "status": "success"
   },
   {
     "question": "What four peer-reviewed research papers did Helios Meridian publish in FY2025?",
@@ -273,7 +295,8 @@
       "6.2 Research Publications\nThe Research group, headed by Dr. Yusuf Adeyemi-Clarke, published four peer-reviewed papers in FY2025: (1) Learned Partition Pruning for Columnar Engines (VLDB 2025); (2) Sketch Merging under Skewed Workloads (SIGMOD 2025); (3) Tail-Latency Hedging in Multi-Tenant Query Services (EuroSys 2025); and (4) Cost-Aware Autoscaling with Quantile Forecasts (SoCC 2025). The Learned Partition Pruning technique reduced scanned bytes by 43% on the HMT-Bench-100 workload.",
       "1. Executive Summary\nHelios Meridian Technologies, Inc. (\"HMT\" or \"the Company\") closed fiscal year 2025 (FY2025) with total revenue of USD 202.2 million, an increase of 27.5% over FY2024 revenue of USD 158.6 million. Operating margin expanded from 11.8% to 15.4%, driven primarily by the migration of legacy on-premises customers to the Aurora Cloud platform and by the retirement of the Vega 1.x product line. The Company ended the year with 1,284 full-time employees across 14 offices in 9 countries.\nKey takeaway: The Aurora Cloud subscription business surpassed 50% of total revenue for the first time, reaching 53.1% (USD 107.4 million) in Q4 FY2025 on a trailing basis. Net revenue retention (NRR) was 118%, and gross logo churn fell to 4.2%."
     ],
-    "ground_truth": "The four peer-reviewed papers are: (1) Learned Partition Pruning for Columnar Engines (VLDB 2025); (2) Sketch Merging under Skewed Workloads (SIGMOD 2025); (3) Tail-Latency Hedging in Multi-Tenant Query Services (EuroSys 2025); and (4) Cost-Aware Autoscaling with Quantile Forecasts (SoCC 2025)."
+    "ground_truth": "The four peer-reviewed papers are: (1) Learned Partition Pruning for Columnar Engines (VLDB 2025); (2) Sketch Merging under Skewed Workloads (SIGMOD 2025); (3) Tail-Latency Hedging in Multi-Tenant Query Services (EuroSys 2025); and (4) Cost-Aware Autoscaling with Quantile Forecasts (SoCC 2025).",
+    "status": "success"
   },
   {
     "question": "Which risks in the Risk Register met the threshold of 15 or higher for escalation to the Board Audit Committee?",
@@ -285,7 +308,8 @@
       "Table of Contents\n| - |\n . . . . . . . . . . . . . 6.3 Mathematical Note: Sketch Error Bounds, 1 = . . . . . . . . . . . . . . . . . . . . . . . . . . . . . 13. 7. Risk Register, 1 = 13 |\n\n8. Glossary of Terms and Acronyms\n9. Appendix: Revision History and Errata\n15\n15",
       "Escalation\nIf a Standard ticket is not resolved within 3 business days, it is escalated automatically to a Tier 2 engineer. Tickets involving a safety incident are always treated as Critical, regardless of contract."
     ],
-    "ground_truth": "Risks R-02 ('Vega 1.x customers fail to migrate before sunset', score 16, owned by VP Sales) and R-03 ('Key-person dependency on CTO and CEO', score 15, owned by CEO)."
+    "ground_truth": "Risks R-02 ('Vega 1.x customers fail to migrate before sunset', score 16, owned by VP Sales) and R-03 ('Key-person dependency on CTO and CEO', score 15, owned by CEO).",
+    "status": "success"
   },
   {
     "question": "What was the date and reason for Revision 2 of document HMT-AR-2025-0114 in the document revision history?",
@@ -297,6 +321,7 @@
       "HELIOS MERIDIAN TECHNOLOGIES\nFY2025 Annual Technical & Operations Report Fiscal year ended 31 March 2026\nDocument ID: HMT-AR-2025-0114 | Revision 3 | Classification: Internal\nPrepared by: Office of the CTO, Zurich, Switzerland\nThis is a fictional, synthetic document created to evaluate retrieval-augmented generation (RAG) systems.",
       "2.1 History and Milestones\nHMT was founded in 2009 in Basel, Switzerland by Dr. Ingrid Valkenburg (current Chief Executive Officer) and Tomasz Okonkwo-Reyes (Chief Technology Officer). The company began as a three-person consultancy specialising in distributed data systems and was incorporated as Helios Meridian GmbH. In 2013 it released its first commercial product, Vega, and in 2018 reorganised under the current Delaware-registered parent, Helios Meridian Technologies, Inc."
     ],
-    "ground_truth": "Revision 2 was authored on 2026-05-06 by the Office of the CTO to correct the Vega 1.x sunset date from 31 December 2026 to 30 September 2026."
+    "ground_truth": "Revision 2 was authored on 2026-05-06 by the Office of the CTO to correct the Vega 1.x sunset date from 31 December 2026 to 30 September 2026.",
+    "status": "success"
   }
 ]

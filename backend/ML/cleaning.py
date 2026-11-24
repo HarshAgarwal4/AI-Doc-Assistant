@@ -20,25 +20,21 @@ test_url = (
 jailbreak_train = pd.read_csv(train_url)
 jailbreak_test = pd.read_csv(test_url)
 
-jailbreak = pd.concat(
-    [jailbreak_train, jailbreak_test],
-    ignore_index=True
-)
-
-jailbreak = jailbreak[["prompt", "type"]]
-
-jailbreak.columns = ["text", "label"]
-
-jailbreak["label"] = jailbreak["label"].str.lower().map({
+# PRESERVE SUPPLIED SPLIT: Keep train and test datasets independent
+jailbreak_train = jailbreak_train[["prompt", "type"]].rename(columns={"prompt": "text", "type": "label"})
+jailbreak_train["label"] = jailbreak_train["label"].str.lower().map({
     "benign": 0,
     "jailbreak": 1
 })
 
-jailbreak["source"] = "jailbreak"
-
+jailbreak_test = jailbreak_test[["prompt", "type"]].rename(columns={"prompt": "text", "type": "label"})
+jailbreak_test["label"] = jailbreak_test["label"].str.lower().map({
+    "benign": 0,
+    "jailbreak": 1
+})
 
 # ==========================================
-# 2. SALAD ATTACK-ENHANCED DATASET
+# 2. SALAD ATTACK-ENHANCED DATASET (TRAINING AUGMENTATION)
 # ==========================================
 
 salad_url = (
@@ -48,55 +44,43 @@ salad_url = (
 )
 
 salad = pd.read_json(salad_url)
-
-salad = salad[["augq"]]
-
-salad.columns = ["text"]
-
-# Weak positive labels:
-# These are attack-enhanced safety prompts,
-# not all necessarily prompt injections.
+salad = salad[["augq"]].rename(columns={"augq": "text"})
 salad["label"] = 1
 
-salad["source"] = "salad"
 # ==========================================
-# 3. COMBINE DATASETS
-# ==========================================
-
-df = pd.concat(
-    [jailbreak, salad ],
-    ignore_index=True
-)
-
-# Remove empty text
-df["text"] = df["text"].astype("string").str.strip()
-
-df = df.dropna(subset=["text", "label"])
-
-df = df[df["text"] != ""]
-
-# Remove exact duplicate texts
-df = df.drop_duplicates(subset=["text"])
-
-# Keep valid labels
-df["label"] = df["label"].astype(int)
-
-# Shuffle
-df = df.sample(frac=1, random_state=42).reset_index(drop=True)
-df = df.drop(columns=['source'])
-
-# ==========================================
-# 4. SAVE FINAL DATASET
+# 3. SAVE UNTOUCHED TEST DATASET
 # ==========================================
 
-df.to_csv("rag_security_training.csv", index=False)
+test_df = jailbreak_test.dropna(subset=["text", "label"]).copy()
+test_df["text"] = test_df["text"].astype("string").str.strip()
+test_df = test_df[test_df["text"] != ""]
+test_df = test_df.drop_duplicates(subset=["text"])
+test_df["label"] = test_df["label"].astype(int)
+test_df.to_csv("rag_security_test.csv", index=False)
+print("Saved untouched test dataset: rag_security_test.csv with shape", test_df.shape)
 
-print("\nDataset created successfully!")
+# ==========================================
+# 4. COMBINE AND CLEAN TRAINING DATASET ONLY
+# ==========================================
 
-print("\nTotal examples:", len(df))
+train_df = pd.concat([jailbreak_train, salad], ignore_index=True)
+train_df["text"] = train_df["text"].astype("string").str.strip()
+train_df = train_df.dropna(subset=["text", "label"])
+train_df = train_df[train_df["text"] != ""]
+train_df = train_df.drop_duplicates(subset=["text"])
+train_df["label"] = train_df["label"].astype(int)
 
-print("\nLabel distribution:")
-print(df["label"].value_counts())
+# Independent test-set guarantee: remove any test samples from training data
+train_df = train_df[~train_df["text"].isin(test_df["text"])].reset_index(drop=True)
+train_df = train_df.sample(frac=1, random_state=42).reset_index(drop=True)
 
-print("\nSample data:")
-print(df.head())
+train_df.to_csv("rag_security_training.csv", index=False)
+print("Saved training dataset: rag_security_training.csv with shape", train_df.shape)
+
+print("\nTrain dataset created successfully!")
+print("Total train examples:", len(train_df))
+print("Total test examples:", len(test_df))
+print("\nTrain label distribution:")
+print(train_df["label"].value_counts())
+print("\nTest label distribution:")
+print(test_df["label"].value_counts())

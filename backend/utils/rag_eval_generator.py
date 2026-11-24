@@ -29,13 +29,14 @@ async def run_single_eval(item: dict, provider: str = "Groq", k: int = 5) -> dic
     Directly runs RAG on a single question:
     1. Retrieves top-k chunks from the retriever for context.
     2. Streams and collects the full answer from generate().
-    3. Returns a dictionary matching the evaluation schema.
+    3. Explicitly tracks generation status ('success' or 'failed') and error details.
     """
     question = item.get("question", "").strip()
     ground_truth = item.get("ground_truth") or item.get("grounded_truth", "").strip()
 
     # 1. Fetch retrieval contexts
     contexts = []
+    retrieval_error = None
     try:
         clean_question = parse_prompt(question)
         raw_chunks = await search(q=clean_question, k=k)
@@ -45,31 +46,51 @@ async def run_single_eval(item: dict, provider: str = "Groq", k: int = 5) -> dic
             if chunk.get("text")
         ]
     except Exception as e:  # noqa: BLE001
+        retrieval_error = str(e)
         logger.warning("Failed to retrieve contexts for question '%s': %s", question, e)
 
     # 2. Generate answer directly using generate()
     answer_chunks = []
+    gen_error = None
     try:
         async for event in generate(question=question, provider=provider):
+            event_name = None
             for line in event.splitlines():
-                if line.startswith("data:"):
+                if line.startswith("event:"):
+                    event_name = line[6:].strip()
+                elif line.startswith("data:"):
                     try:
                         payload = json.loads(line[5:].strip())
-                        if payload.get("text"):
+                        if event_name == "error":
+                            gen_error = payload.get("message", "Generation error from server")
+                        elif payload.get("text"):
                             answer_chunks.append(payload["text"])
                     except Exception:  # noqa: BLE001, S110
                         pass
     except Exception as e:  # noqa: BLE001
+        gen_error = str(e)
         logger.error("Failed to generate answer for question '%s': %s", question, e)
 
     answer = "".join(answer_chunks).strip()
 
-    return {
+    # Explicitly determine generation success
+    is_failed = bool(gen_error or not answer)
+    status = "failed" if is_failed else "success"
+    error_msg = gen_error or ("Empty answer generated" if not answer else None)
+
+    result = {
         "question": question,
         "answer": answer,
         "contexts": contexts,
         "ground_truth": ground_truth,
+        "status": status,
     }
+    if error_msg:
+        result["error"] = error_msg
+    if retrieval_error:
+        result["retrieval_error"] = retrieval_error
+
+    return result
 
 
 async def main():
@@ -105,6 +126,12 @@ async def main():
         default=None,
         help="Optional limit on the number of questions to process",
     )
+    parser.add_argument(
+        "--include-failed",
+        action="store_true",
+        default=False,
+        help="Include failed generation attempts in the main output file rather than excluding them",
+    )
 
     args = parser.parse_args()
 
@@ -128,6 +155,7 @@ async def main():
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
+    failures_path = output_path.parent / f"{output_path.stem}_failures.json"
 
     results = []
     for i, item in enumerate(questions, start=1):
@@ -136,18 +164,32 @@ async def main():
         eval_result = await run_single_eval(item, provider=args.provider, k=args.k)
         results.append(eval_result)
 
-        # Save incrementally after each question so progress is never lost
-        with open(output_path, "w", encoding="utf-8") as f:  # noqa: ASYNC230
-            json.dump(results, f, indent=2, ensure_ascii=False)
+        successful_results = [r for r in results if r.get("status") == "success"]
+        failed_results = [r for r in results if r.get("status") != "success"]
 
-    print(f"\nSuccessfully evaluated {len(results)} questions.")
-    print(f"Results saved to: {output_path}")
+        # Save incrementally after each question so progress is never lost
+        save_set = results if args.include_failed else successful_results
+        with open(output_path, "w", encoding="utf-8") as f:  # noqa: ASYNC230
+            json.dump(save_set, f, indent=2, ensure_ascii=False)
+
+        if failed_results:
+            with open(failures_path, "w", encoding="utf-8") as f:  # noqa: ASYNC230
+                json.dump(failed_results, f, indent=2, ensure_ascii=False)
+
+    successful_results = [r for r in results if r.get("status") == "success"]
+    failed_results = [r for r in results if r.get("status") != "success"]
+
+    print(f"\nEvaluation summary: {len(results)} total, {len(successful_results)} succeeded, {len(failed_results)} failed.")
+    print(f"Evaluated results saved to: {output_path}")
+    if failed_results:
+        print(f"Excluded {len(failed_results)} failed samples saved separately to: {failures_path}")
 
     # Also mirror to root directory if run inside backend
     root_output = BACKEND_DIR.parent / "rag_tests_questions.json"
     if root_output.parent.exists() and root_output.parent != BACKEND_DIR:
+        save_set = results if args.include_failed else successful_results
         with open(root_output, "w", encoding="utf-8") as f:  # noqa: ASYNC230
-            json.dump(results, f, indent=2, ensure_ascii=False)
+            json.dump(save_set, f, indent=2, ensure_ascii=False)
 
 
 if __name__ == "__main__":

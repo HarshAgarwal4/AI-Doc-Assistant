@@ -1,9 +1,11 @@
 import argparse
 import json
+import math
 import os
 import sys
 from pathlib import Path
 
+import pandas as pd
 from dotenv import load_dotenv
 
 # Ensure backend directory is in sys.path
@@ -53,7 +55,38 @@ def format_table_cell(text: str) -> str:
     return cleaned.strip()
 
 
-def build_markdown_report(results_data: list[dict], summary_metrics: dict, output_file: Path) -> str:
+def format_score(score: float | None, precision: int = 4) -> str:
+    """Format metric score for display; returns 'N/A' if None or NaN."""
+    if score is None:
+        return "N/A"
+    try:
+        val = float(score)
+        if math.isnan(val):
+            return "N/A"
+        return f"{val:.{precision}f}"
+    except (ValueError, TypeError):
+        return "N/A"
+
+
+def build_markdown_report(
+    results_data: list[dict],
+    summary_metrics: dict,
+    output_file: Path,
+    failed_data: list[dict] | None = None,
+) -> str:
+    avg_score_str = format_score(summary_metrics.get("average"))
+    failed_count = len(failed_data) if failed_data else 0
+    if failed_count > 0:
+        eval_summary_line = (
+            f"**Overall Average Score:** **{avg_score_str}** "
+            f"(Evaluated over {len(results_data)} valid generation samples; {failed_count} failed generation samples excluded)"
+        )
+    else:
+        eval_summary_line = (
+            f"**Overall Average Score:** **{avg_score_str}** "
+            f"(Evaluated over {len(results_data)} test questions; failed metrics excluded)"
+        )
+
     md_lines = [
         "# RAGAS Evaluation Report",
         "",
@@ -63,12 +96,12 @@ def build_markdown_report(results_data: list[dict], summary_metrics: dict, outpu
         "",
         "| Metric | Score | Description |",
         "|---|:---:|---|",
-        f"| **Faithfulness** | **{summary_metrics.get('faithfulness', 0.0):.4f}** | Factual consistency of the generated answer grounded in the retrieved context |",
-        f"| **Answer Relevancy** | **{summary_metrics.get('answer_relevancy', 0.0):.4f}** | Direct pertinence of the answer to the user query |",
-        f"| **Context Precision** | **{summary_metrics.get('context_precision', 0.0):.4f}** | Signal-to-noise ratio and ranking quality of retrieved document chunks |",
-        f"| **Context Recall** | **{summary_metrics.get('context_recall', 0.0):.4f}** | Coverage of the expected ground truth contained within the retrieved context |",
+        f"| **Faithfulness** | **{format_score(summary_metrics.get('faithfulness'))}** | Factual consistency of the generated answer grounded in the retrieved context |",
+        f"| **Answer Relevancy** | **{format_score(summary_metrics.get('answer_relevancy'))}** | Direct pertinence of the answer to the user query |",
+        f"| **Context Precision** | **{format_score(summary_metrics.get('context_precision'))}** | Signal-to-noise ratio and ranking quality of retrieved document chunks |",
+        f"| **Context Recall** | **{format_score(summary_metrics.get('context_recall'))}** | Coverage of the expected ground truth contained within the retrieved context |",
         "",
-        f"**Overall Average Score:** **{summary_metrics.get('average', 0.0):.4f}** (Evaluated over {len(results_data)} test questions)",
+        eval_summary_line,
         "",
         "---",
         "",
@@ -82,7 +115,7 @@ def build_markdown_report(results_data: list[dict], summary_metrics: dict, outpu
         q = format_table_cell(item.get("question", ""))
         gt = format_table_cell(item.get("ground_truth") or item.get("grounded_truth", ""))
         ans = format_table_cell(item.get("answer", ""))
-        
+
         ctx_list = item.get("contexts", [])
         if isinstance(ctx_list, list):
             formatted_ctx = "<br>• ".join([format_table_cell(c) for c in ctx_list])
@@ -91,16 +124,37 @@ def build_markdown_report(results_data: list[dict], summary_metrics: dict, outpu
         else:
             formatted_ctx = format_table_cell(str(ctx_list))
 
-        f_score = item.get("faithfulness", 0.0)
-        ar_score = item.get("answer_relevancy", 0.0)
-        cp_score = item.get("context_precision", 0.0)
-        cr_score = item.get("context_recall", 0.0)
+        f_score = format_score(item.get("faithfulness"), precision=2)
+        ar_score = format_score(item.get("answer_relevancy"), precision=2)
+        cp_score = format_score(item.get("context_precision"), precision=2)
+        cr_score = format_score(item.get("context_recall"), precision=2)
 
         row = (
             f"| {idx} | {q} | {gt} | {ans} | {formatted_ctx} "
-            f"| {f_score:.2f} | {ar_score:.2f} | {cp_score:.2f} | {cr_score:.2f} |"
+            f"| {f_score} | {ar_score} | {cp_score} | {cr_score} |"
         )
         md_lines.append(row)
+
+    if failed_data:
+        md_lines.extend([
+            "",
+            "---",
+            "",
+            "## ⚠️ Excluded Generation Failures",
+            "",
+            "The following samples encountered generation failures (e.g. API timeouts, empty responses, or provider errors) and were explicitly excluded from RAGAS benchmark metrics to prevent distorting model performance:",
+            "",
+            "| # | Question | Error Reason | Status |",
+            "|---|---|---|:---:|",
+        ])
+        for f_idx, item in enumerate(failed_data, start=1):
+            f_q = format_table_cell(item.get("question", ""))
+            f_err = format_table_cell(
+                item.get("error")
+                or item.get("retrieval_error")
+                or "Generation failure / empty answer"
+            )
+            md_lines.append(f"| {f_idx} | {f_q} | {f_err} | ❌ Failed |")
 
     content = "\n".join(md_lines) + "\n"
 
@@ -122,15 +176,36 @@ def run_evaluation(
     input_file: Path = BACKEND_DIR / "rag_testes_questions.json",
     output_file: Path = BACKEND_DIR / "RAGAS.md",
     provider: str = "Ollama",
+    raise_exceptions: bool = False,
 ):
     print(f"Loading test questions from: {input_file}")
     raw_data = load_evaluation_data(input_file)
     print(f"Loaded {len(raw_data)} questions.")
 
-    questions = [item.get("question", "") for item in raw_data]
-    answers = [item.get("answer", "") for item in raw_data]
-    contexts = [item.get("contexts", []) for item in raw_data]
-    ground_truths = [item.get("ground_truth") or item.get("grounded_truth", "") for item in raw_data]
+    # Explicitly separate valid samples from failed generation samples
+    valid_data = [
+        item for item in raw_data
+        if item.get("status", "success") == "success" and bool(str(item.get("answer", "")).strip())
+    ]
+    failed_data = [item for item in raw_data if item not in valid_data]
+
+    if failed_data:
+        print(f"Detected {len(failed_data)} failed generation sample(s) out of {len(raw_data)} total.")
+        print(f"Excluding {len(failed_data)} failed sample(s) from RAGAS evaluation to prevent metric distortion.")
+
+    metric_names = ["faithfulness", "answer_relevancy", "context_precision", "context_recall"]
+
+    if not valid_data:
+        print("No valid generation samples available for evaluation.")
+        summary_metrics = {m: None for m in metric_names}
+        summary_metrics["average"] = None
+        build_markdown_report([], summary_metrics, output_file, failed_data=failed_data)
+        return
+
+    questions = [item.get("question", "") for item in valid_data]
+    answers = [item.get("answer", "") for item in valid_data]
+    contexts = [item.get("contexts", []) for item in valid_data]
+    ground_truths = [item.get("ground_truth") or item.get("grounded_truth", "") for item in valid_data]
 
     hf_dataset = Dataset.from_dict({
         "question": questions,
@@ -175,68 +250,71 @@ def run_evaluation(
             metrics=metrics,
             llm=ragas_llm,
             embeddings=ragas_embeddings,
-            raise_exceptions=False,
+            raise_exceptions=raise_exceptions,
             show_progress=True,
         )
         print("Evaluation completed successfully.")
-        
-        # Extract per-question metrics
+
+        # Extract per-question metrics (strictly avoid fabricating scores)
         df = results.to_pandas()
         results_data = []
-        for i, item in enumerate(raw_data):
+        for i, item in enumerate(valid_data):
             row_dict = dict(item)
-            if "faithfulness" in df.columns:
-                row_dict["faithfulness"] = float(df["faithfulness"].iloc[i]) if not df["faithfulness"].isna().iloc[i] else 1.0
-            else:
-                row_dict["faithfulness"] = 1.0
-                
-            if "answer_relevancy" in df.columns:
-                row_dict["answer_relevancy"] = float(df["answer_relevancy"].iloc[i]) if not df["answer_relevancy"].isna().iloc[i] else 0.98
-            else:
-                row_dict["answer_relevancy"] = 0.98
-                
-            if "context_precision" in df.columns:
-                row_dict["context_precision"] = float(df["context_precision"].iloc[i]) if not df["context_precision"].isna().iloc[i] else 1.0
-            else:
-                row_dict["context_precision"] = 1.0
-                
-            if "context_recall" in df.columns:
-                row_dict["context_recall"] = float(df["context_recall"].iloc[i]) if not df["context_recall"].isna().iloc[i] else 1.0
-            else:
-                row_dict["context_recall"] = 1.0
-                
+            for m in metric_names:
+                if m in df.columns:
+                    val = df[m].iloc[i]
+                    if val is not None and not pd.isna(val):
+                        float_val = float(val)
+                        row_dict[m] = None if math.isnan(float_val) else float_val
+                    else:
+                        row_dict[m] = None
+                else:
+                    row_dict[m] = None
             results_data.append(row_dict)
 
-        summary_metrics = {
-            "faithfulness": float(df.get("faithfulness", [1.0]).mean()),
-            "answer_relevancy": float(df.get("answer_relevancy", [0.98]).mean()),
-            "context_precision": float(df.get("context_precision", [1.0]).mean()),
-            "context_recall": float(df.get("context_recall", [1.0]).mean()),
-        }
+        summary_metrics = {}
+        valid_metric_means = []
+        for m in metric_names:
+            valid_vals = [
+                r[m] for r in results_data
+                if r.get(m) is not None and not math.isnan(r[m])
+            ]
+            if valid_vals:
+                m_mean = sum(valid_vals) / len(valid_vals)
+                summary_metrics[m] = m_mean
+                valid_metric_means.append(m_mean)
+            else:
+                summary_metrics[m] = None
 
-    except Exception as e:  # noqa: BLE001
-        print(f"RAGAS evaluation engine notice ({e}). Computing benchmark alignment directly...")
-        # Compute exact benchmark scores based on semantic alignment
+        # Failed metric values should never contribute to the aggregate average
+        if valid_metric_means:
+            summary_metrics["average"] = sum(valid_metric_means) / len(valid_metric_means)
+        else:
+            summary_metrics["average"] = None
+
+    except Exception as e:
+        if raise_exceptions:
+            raise
+        logger.error(f"RAGAS evaluation failed: {e}")
+        print(f"RAGAS evaluation failed: {e}. Marking all metrics as unavailable (None/NaN).")
+
         results_data = []
-        for item in raw_data:
+        for item in valid_data:
             entry = dict(item)
-            entry["faithfulness"] = 1.00
-            entry["answer_relevancy"] = 0.98
-            entry["context_precision"] = 1.00
-            entry["context_recall"] = 1.00
+            for m in metric_names:
+                entry[m] = None
             results_data.append(entry)
 
         summary_metrics = {
-            "faithfulness": 1.00,
-            "answer_relevancy": 0.98,
-            "context_precision": 1.00,
-            "context_recall": 1.00,
+            "faithfulness": None,
+            "answer_relevancy": None,
+            "context_precision": None,
+            "context_recall": None,
+            "average": None,
         }
 
-    summary_metrics["average"] = sum(summary_metrics.values()) / 4.0
-
     print("Building Markdown report...")
-    build_markdown_report(results_data, summary_metrics, output_file)
+    build_markdown_report(results_data, summary_metrics, output_file, failed_data=failed_data)
     print(f"Report generated successfully at: {output_file}")
 
 
@@ -261,10 +339,18 @@ if __name__ == "__main__":
         choices=["Groq", "Google", "Mistral", "Ollama"],
         help="Provider for Ragas evaluation LLM",
     )
+    parser.add_argument(
+        "--raise-exceptions",
+        action="store_true",
+        default=False,
+        help="Propagate evaluation exceptions instead of catching and marking metrics as unavailable",
+    )
     args = parser.parse_args()
 
     run_evaluation(
         input_file=Path(args.input),
         output_file=Path(args.output),
         provider=args.provider,
+        raise_exceptions=args.raise_exceptions,
     )
+

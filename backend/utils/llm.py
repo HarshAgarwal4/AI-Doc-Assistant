@@ -11,6 +11,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_groq import ChatGroq
 from langchain_mistralai import ChatMistralAI
 from langchain_ollama import ChatOllama
+from langfuse import get_client, observe
 from sqlmodel import Session
 
 from app.models.llm import LLMCall, ModelDetails
@@ -33,6 +34,8 @@ finally:
     os.chdir(_orig_cwd)
 
 load_dotenv()
+
+langfuse = get_client()
 
 MODELS = {
     "Google": ModelDetails(
@@ -123,6 +126,7 @@ def make_event(event: str, data: dict) -> str:
         f"data: {json.dumps(data)}\n\n"
     )
 
+@observe()
 @retry(max_retry=3)
 async def generate(
     question: str,

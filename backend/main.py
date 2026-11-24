@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 from pathlib import Path
 from typing import Annotated
@@ -19,9 +20,10 @@ from sqlmodel import Session, select
 
 from app.models.chunkModel import Chunk, SearchResult
 from app.models.docModel import Document
+from app.models.feedback import Feedback, FeedbackRequestModel, FeedbackResponseModel
 from app.models.llm import LLMRequestModel
 from app.models.resumeModel import ResumeData
-from database.database import get_session
+from database.database import engine, get_session
 from utils.llm import generate
 from utils.logger import logger
 from utils.process_doc import process_document
@@ -378,6 +380,58 @@ def get_page():
             color: #6b7280;
             padding: 30px;
         }
+
+        .feedback-container {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid #e5e7eb;
+        }
+
+        .feedback-label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .feedback-btn {
+            width: auto !important;
+            padding: 6px 14px !important;
+            font-size: 14px;
+            border-radius: 6px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            margin: 0 !important;
+        }
+
+        .thumb-up-btn {
+            background: #10b981;
+        }
+
+        .thumb-up-btn:hover {
+            background: #059669;
+        }
+
+        .thumb-down-btn {
+            background: #ef4444;
+        }
+
+        .thumb-down-btn:hover {
+            background: #dc2626;
+        }
+
+        .feedback-success {
+            font-size: 14px;
+            color: #059669;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
     </style>
 </head>
 
@@ -503,6 +557,13 @@ async function askQuestion() {
             <button class="cancel-btn">Cancel</button>
         </div>
 
+        <div class="feedback-container" style="display: none;">
+            <span class="feedback-label">Was this response helpful?</span>
+            <button class="feedback-btn thumb-up-btn" type="button">👍 Thumbs Up</button>
+            <button class="feedback-btn thumb-down-btn" type="button">👎 Thumbs Down</button>
+            <span class="feedback-success" style="display: none;"></span>
+        </div>
+
         <p class="meta"></p>
     `;
 
@@ -514,6 +575,11 @@ async function askQuestion() {
     const meta = card.querySelectorAll(".meta")[1];
     const docFiles = card.querySelector(".doc-files");
     const docPages = card.querySelector(".doc-pages");
+    const feedbackContainer = card.querySelector(".feedback-container");
+    const thumbUpBtn = card.querySelector(".thumb-up-btn");
+    const thumbDownBtn = card.querySelector(".thumb-down-btn");
+    const feedbackSuccess = card.querySelector(".feedback-success");
+    const feedbackLabel = card.querySelector(".feedback-label");
 
     let reader = null;
     let saved = false;
@@ -582,6 +648,44 @@ async function askQuestion() {
                 meta.textContent =
                     `Database ID: ${data.record_id} | ` +
                     `Generation time: ${data.time_taken}s`;
+
+                if (data.record_id) {
+                    feedbackContainer.style.display = "flex";
+
+                    const sendFeedback = async (rating) => {
+                        thumbUpBtn.disabled = true;
+                        thumbDownBtn.disabled = true;
+                        try {
+                            const res = await fetch("/feedback", {
+                                method: "POST",
+                                headers: {
+                                    "Content-Type": "application/json"
+                                },
+                                body: JSON.stringify({
+                                    id: data.record_id,
+                                    rating: rating
+                                })
+                            });
+                            if (!res.ok) {
+                                throw new Error("Failed to save feedback");
+                            }
+                            const resJson = await res.json();
+                            thumbUpBtn.style.display = "none";
+                            thumbDownBtn.style.display = "none";
+                            feedbackLabel.style.display = "none";
+                            feedbackSuccess.textContent = "✓ " + (resJson.msg || "Feedback saved successfully");
+                            feedbackSuccess.style.display = "inline";
+                        } catch (err) {
+                            console.error("Feedback error:", err);
+                            thumbUpBtn.disabled = false;
+                            thumbDownBtn.disabled = false;
+                            alert("Failed to save feedback. Please try again.");
+                        }
+                    };
+
+                    thumbUpBtn.onclick = () => sendFeedback("Thumbs_up");
+                    thumbDownBtn.onclick = () => sendFeedback("Thumbs_down");
+                }
             }
 
             else if (event === "error") {
@@ -732,4 +836,42 @@ async def extract(file : Annotated[UploadFile , File()]):
         )
     response = await extract_resume_data(content)
     return response
+
+
+def save_feedback(f: FeedbackRequestModel) -> Feedback:
+    with Session(engine) as session:
+        feedback_obj = Feedback(
+            record_id=f.id,
+            rating=f.rating,
+            comment=f.comment,
+        )
+        session.add(feedback_obj)
+        session.commit()
+        session.refresh(feedback_obj)
+        return feedback_obj
+
+
+@app.post("/feedback", status_code=status.HTTP_201_CREATED, response_model=FeedbackResponseModel)
+async def feedback(f: FeedbackRequestModel):
+    feedback_record = await asyncio.to_thread(save_feedback, f)
+    return FeedbackResponseModel(
+        id=feedback_record.id,
+        msg="Feedback saved successfully",
+    )
+
+
+def fetch_all_feedbacks() -> list[Feedback]:
+    with Session(engine) as session:
+        return list(session.exec(select(Feedback)).all())
+
+
+@app.get("/feedback", response_model=list[Feedback], status_code=status.HTTP_200_OK)
+async def get_feedbacks():
+    return await asyncio.to_thread(fetch_all_feedbacks)
+
+
+@app.get("/feedbacks", response_model=list[Feedback], status_code=status.HTTP_200_OK, include_in_schema=False)
+async def get_feedbacks_alias():
+    return await asyncio.to_thread(fetch_all_feedbacks)
+
 

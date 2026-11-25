@@ -1,86 +1,191 @@
+from pathlib import Path
 
 import pandas as pd
 
 # ==========================================
-# 1. JAILBREAK CLASSIFICATION DATASET
+# 1. LOAD DATASET
 # ==========================================
 
-train_url = (
-    "https://huggingface.co/datasets/"
-    "jackhhao/jailbreak-classification/resolve/main/"
-    "balanced/jailbreak_dataset_train_balanced.csv"
-)
+CURRENT_DIR = Path(__file__).resolve().parent
+BASE_DIR = CURRENT_DIR.parent
 
-test_url = (
-    "https://huggingface.co/datasets/"
-    "jackhhao/jailbreak-classification/resolve/main/"
-    "balanced/jailbreak_dataset_test_balanced.csv"
-)
+csv_candidates = [
+    CURRENT_DIR / "prompt_injection.csv",
+    BASE_DIR / "prompt_injection.csv",
+    Path("prompt_injection.csv"),
+    Path("d:/Training/ML/prompt injection/prompt_injection.csv"),
+]
 
-jailbreak_train = pd.read_csv(train_url)
-jailbreak_test = pd.read_csv(test_url)
+csv_path = None
+for p in csv_candidates:
+    if p.exists():
+        csv_path = p
+        break
 
-# PRESERVE SUPPLIED SPLIT: Keep train and test datasets independent
-jailbreak_train = jailbreak_train[["prompt", "type"]].rename(columns={"prompt": "text", "type": "label"})
-jailbreak_train["label"] = jailbreak_train["label"].str.lower().map({
-    "benign": 0,
-    "jailbreak": 1
+if not csv_path:
+    raise FileNotFoundError("Could not find prompt_injection.csv")
+
+print(f"Loading dataset from: {csv_path}")
+df = pd.read_csv(csv_path)
+
+print("\n========== INITIAL DATASET ==========")
+print("Dataset shape:", df.shape)
+print("Columns:", df.columns.tolist())
+
+print("\nFirst 5 records:")
+print(df.head())
+
+print("\nDataset Information:")
+df.info()
+
+
+# ==========================================
+# 2. CLEAN COLUMN NAMES
+# ==========================================
+
+df.columns = df.columns.str.strip().str.lower()
+
+# Fix incorrectly formatted column names if present
+df = df.rename(columns={
+    "**source": "source",
+    "**&#x73;plit": "split",
 })
 
-jailbreak_test = jailbreak_test[["prompt", "type"]].rename(columns={"prompt": "text", "type": "label"})
-jailbreak_test["label"] = jailbreak_test["label"].str.lower().map({
-    "benign": 0,
-    "jailbreak": 1
-})
+print("\nCleaned Columns:")
+print(df.columns.tolist())
+
 
 # ==========================================
-# 2. SALAD ATTACK-ENHANCED DATASET (TRAINING AUGMENTATION)
+# 3. REMOVE DUPLICATES
 # ==========================================
 
-salad_url = (
-    "https://huggingface.co/datasets/"
-    "OpenSafetyLab/Salad-Data/resolve/main/"
-    "attack_enhanced_set.json"
-)
+print("\n========== DUPLICATE CHECK ==========")
+print("Duplicate rows:", df.duplicated().sum())
 
-salad = pd.read_json(salad_url)
-salad = salad[["augq"]].rename(columns={"augq": "text"})
-salad["label"] = 1
+df = df.drop_duplicates()
+print("Shape after removing duplicates:", df.shape)
 
-# ==========================================
-# 3. SAVE UNTOUCHED TEST DATASET
-# ==========================================
+if "text" in df.columns:
+    print("Duplicate text records:", df.duplicated(subset=["text"]).sum())
 
-test_df = jailbreak_test.dropna(subset=["text", "label"]).copy()
-test_df["text"] = test_df["text"].astype("string").str.strip()
-test_df = test_df[test_df["text"] != ""]
-test_df = test_df.drop_duplicates(subset=["text"])
-test_df["label"] = test_df["label"].astype(int)
-test_df.to_csv("rag_security_test.csv", index=False)
-print("Saved untouched test dataset: rag_security_test.csv with shape", test_df.shape)
+if "text" in df.columns and "category" in df.columns:
+    conflicts = df.groupby("text")["category"].nunique()
+    print("Conflicting text categories:", (conflicts > 1).sum())
+
 
 # ==========================================
-# 4. COMBINE AND CLEAN TRAINING DATASET ONLY
+# 4. HANDLE MISSING VALUES
 # ==========================================
 
-train_df = pd.concat([jailbreak_train, salad], ignore_index=True)
-train_df["text"] = train_df["text"].astype("string").str.strip()
-train_df = train_df.dropna(subset=["text", "label"])
-train_df = train_df[train_df["text"] != ""]
-train_df = train_df.drop_duplicates(subset=["text"])
-train_df["label"] = train_df["label"].astype(int)
+print("\n========== MISSING VALUES ==========")
+print(df.isnull().sum())
 
-# Independent test-set guarantee: remove any test samples from training data
-train_df = train_df[~train_df["text"].isin(test_df["text"])].reset_index(drop=True)
-train_df = train_df.sample(frac=1, random_state=42).reset_index(drop=True)
+# Text is essential
+if "text" in df.columns:
+    df = df.dropna(subset=["text"])
+    df["text"] = df["text"].astype(str).str.strip()
+    df = df[df["text"] != ""]
 
-train_df.to_csv("rag_security_training.csv", index=False)
-print("Saved training dataset: rag_security_training.csv with shape", train_df.shape)
+# Category handling
+if "category" in df.columns:
+    df["category"] = df["category"].astype(str).str.strip()
+    df = df[df["category"] != ""]
 
-print("\nTrain dataset created successfully!")
-print("Total train examples:", len(train_df))
-print("Total test examples:", len(test_df))
-print("\nTrain label distribution:")
-print(train_df["label"].value_counts())
-print("\nTest label distribution:")
-print(test_df["label"].value_counts())
+
+# ==========================================
+# 5. GENERATE BINARY LABELS
+# ==========================================
+
+print("\n========== LABEL GENERATION ==========")
+
+# Benign = 0, Attack = 1
+if "category" in df.columns:
+    df["label"] = df["category"].str.lower().apply(lambda x: 0 if x == "benign" else 1)
+elif "label" in df.columns:
+    if df["label"].dtype == "object":
+        df["label"] = df["label"].str.lower().apply(lambda x: 0 if x == "benign" else 1)
+    else:
+        df["label"] = df["label"].astype(int)
+
+print("Label Distribution:")
+print(df["label"].value_counts())
+
+print("\nLabel Percentages:")
+print(df["label"].value_counts(normalize=True) * 100)
+
+if "category" in df.columns:
+    print("\nCategory-wise Distribution:")
+    print(df["category"].value_counts())
+
+
+# ==========================================
+# 6. CLEAN TEXT
+# ==========================================
+
+print("\n========== TEXT CLEANING ==========")
+
+# Normalize whitespace
+df["text"] = df["text"].str.strip()
+df["text"] = df["text"].str.replace(r"\s+", " ", regex=True)
+
+# Recalculate word count
+df["word_count"] = df["text"].str.split().str.len()
+print("Word count updated successfully.")
+
+
+# ==========================================
+# 7. CHECK TRAIN/TEST SPLIT
+# ==========================================
+
+if "split" in df.columns:
+    print("\n========== TRAIN TEST SPLIT ==========")
+    print(df["split"].value_counts(dropna=False))
+    print("\nSplit-wise Label Distribution:")
+    print(pd.crosstab(df["split"], df["label"], margins=True))
+
+
+# ==========================================
+# 8. CHECK ID AND DATA CONSISTENCY
+# ==========================================
+
+print("\n========== DATA VALIDATION ==========")
+
+if "id" in df.columns:
+    print("Duplicate IDs:", df["id"].duplicated().sum())
+
+if "language" in df.columns:
+    print("\nLanguage Distribution:")
+    print(df["language"].value_counts(dropna=False))
+
+print("\nMissing Values:")
+print(df.isnull().sum())
+
+print("\nFinal Label Distribution:")
+print(df["label"].value_counts())
+
+
+# ==========================================
+# 9. FINAL VALIDATION
+# ==========================================
+
+assert df["text"].notna().all(), "Missing text found!"
+assert df["label"].notna().all(), "Missing labels found!"
+assert set(df["label"].unique()) == {0, 1}, "Both benign and malicious classes must exist!"
+
+print("\nDataset validation successful!")
+
+
+# ==========================================
+# 10. SAVE CLEANED DATASET
+# ==========================================
+
+out_path = BASE_DIR / "clean_prompt_injection.csv"
+out_path.parent.mkdir(parents=True, exist_ok=True)
+df.to_csv(out_path, index=False)
+
+print("\n========== FINAL RESULT ==========")
+print(f"Cleaned dataset saved successfully to {out_path.name}!")
+print("Final dataset shape:", df.shape)
+
+print("\nFinal Dataset Preview:")
+print(df.head())

@@ -11,6 +11,7 @@ from sqlmodel import SQLModel
 from app.models.docModel import Document
 from app.models.chunkModel import Chunk
 from app.models.feedback import Feedback
+from app.models.ticket import TicketModel
 from app.models.llm import LLMCall
 
 load_dotenv()

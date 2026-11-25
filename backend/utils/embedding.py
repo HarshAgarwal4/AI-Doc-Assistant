@@ -2,6 +2,7 @@ import os
 
 from dotenv import load_dotenv
 from langchain_ollama import OllamaEmbeddings
+from langfuse import observe
 
 load_dotenv()
 
@@ -18,6 +19,6 @@ def generate_embeddings(texts: list[str]) -> list[list[float]]:
         return []
     return embedding_model.embed_documents(texts)
 
-
+@observe()
 def generate_embedding(text: str) -> list[float]:
     return embedding_model.embed_query(text)

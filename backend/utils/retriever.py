@@ -1,6 +1,7 @@
 import asyncio
 
 from fastapi import HTTPException, status
+from langfuse import observe
 from sqlmodel import Session, select
 
 from app.models.chunkModel import Chunk
@@ -60,7 +61,7 @@ def _search_sync(q: str, k: int):
             for chunk, filename, dist in results
         ]
 
-
+@observe()
 async def search(q: str, k: int = 5):
 
     # Validate query

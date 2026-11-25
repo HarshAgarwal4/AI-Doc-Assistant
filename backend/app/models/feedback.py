@@ -17,7 +17,8 @@ class Feedback(SQLModel , table=True):
         sa_column=Column(
             ForeignKey('llm_calls.id' , ondelete="CASCADE"),
             nullable=False,
-            index=True
+            index=True,
+            unique=True
         )
     )
     rating : Literal['Thumbs_up' , 'Thumbs_down'] = Field(
@@ -33,7 +34,10 @@ class Feedback(SQLModel , table=True):
 
 class FeedbackRequestModel(BaseModel):
     id : UUID
-    comment : str | None = None
+    comment : str | None = Field(
+        default=None,
+        max_length=1000
+    )
     rating : Literal['Thumbs_up' , 'Thumbs_down'] = Field(
         default='Thumbs_up'
     )

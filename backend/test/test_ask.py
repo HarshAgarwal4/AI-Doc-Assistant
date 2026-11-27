@@ -6,6 +6,7 @@ import httpx
 import pytest
 from fastapi import HTTPException
 from fastapi.testclient import TestClient
+from langchain_core.messages import AIMessageChunk, SystemMessage
 from sqlalchemy.pool import StaticPool
 from sqlmodel import Session, SQLModel, create_engine, select
 
@@ -41,7 +42,8 @@ def client(
         yield test_session
 
     app.dependency_overrides[get_session] = override_get_session
-    monkeypatch.setattr("utils.llm.engine", test_engine)
+    monkeypatch.setattr("database.database.engine", test_engine)
+    monkeypatch.setattr("utils.llm.db.engine", test_engine)
     test_client = TestClient(app)
     yield test_client
     test_client.close()
@@ -72,9 +74,9 @@ def mock_detect_with_both():
         yield mock_detect
 
 
-class MockChunk:
+class MockChunk(AIMessageChunk):
     def __init__(self, content: str, input_tokens: int = 5, output_tokens: int = 5):
-        self.content = content
+        super().__init__(content=content)
         self.usage_metadata = {
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
@@ -99,6 +101,36 @@ class MockTimeoutLLM:
     async def astream(self, question: str):
         raise TimeoutError("Connection timed out")
         yield
+
+
+class MockAgent:
+    def __init__(self, llm, system_prompt=None):
+        self.llm = llm
+        self.system_prompt = system_prompt
+
+    async def astream(self, input_dict, stream_mode="messages"):
+        messages = list(input_dict.get("messages", []))
+        if self.system_prompt:
+            messages = [SystemMessage(content=self.system_prompt), *messages]
+        try:
+            gen = self.llm.astream(messages)
+        except TypeError:
+            gen = self.llm.astream(messages[-1].content if messages else "")
+        async for chunk in gen:
+            yield chunk, {}
+
+
+@pytest.fixture(autouse=True)
+def mock_agent_wrapper(monkeypatch: pytest.MonkeyPatch):
+    import utils.llm as llm_module
+    orig_create_agent = llm_module.create_agent
+
+    def fake_create_agent(model, tools=None, system_prompt=None):
+        if hasattr(model, "astream"):
+            return MockAgent(model, system_prompt=system_prompt)
+        return orig_create_agent(model=model, tools=tools, system_prompt=system_prompt)
+
+    monkeypatch.setattr(llm_module, "create_agent", fake_create_agent)
 
 
 # 1. Test successful streaming response and DB persistence
@@ -199,7 +231,8 @@ def test_page_endpoint(client: TestClient):
 
 # 7. Test direct generate() yields token and saved events without raw pages/filename events
 def test_generate_events(monkeypatch: pytest.MonkeyPatch, test_session: Session):
-    monkeypatch.setattr("utils.llm.engine", test_engine)
+    monkeypatch.setattr("database.database.engine", test_engine)
+    monkeypatch.setattr("utils.llm.db.engine", test_engine)
     with patch("utils.llm.get_llm", return_value=MockLLM()):
         async def run():
             events = []
@@ -250,7 +283,8 @@ def test_ask_missing_chunk_metadata(mock_get_llm, client: TestClient, mock_retri
 
 # 10. Test prompt formatting includes filename and page number for LLM context
 def test_generate_prompt_contains_filename_and_pages(monkeypatch: pytest.MonkeyPatch, test_session: Session):
-    monkeypatch.setattr("utils.llm.engine", test_engine)
+    monkeypatch.setattr("database.database.engine", test_engine)
+    monkeypatch.setattr("utils.llm.db.engine", test_engine)
     captured_messages = []
 
     class CapturingLLM:
@@ -272,9 +306,9 @@ def test_generate_prompt_contains_filename_and_pages(monkeypatch: pytest.MonkeyP
 
     # Verify system prompt instructs LLM on filename, page, and 'I don't know' rules
     system_prompt_text = system_msg.content
-    assert "I don't know." in system_prompt_text
+    assert "I don't know" in system_prompt_text
     assert "show the source filename and page number" in system_prompt_text
-    assert "If and only if the response is successful" in system_prompt_text
+    assert "If the response is successful" in system_prompt_text
 
     # Verify user prompt contains filenames and page numbers of retrieved chunks
     user_prompt_text = user_msg.content
@@ -307,7 +341,7 @@ def test_generate_retrieval_failure_raises(mock_sleep, mock_retriever_search):
         asyncio.run(run())
 
 
-# 12. Test ML model detects jailbreak: yields "I don't know." and skips LLM
+# 12. Test ML model detects jailbreak: yields ticket message and skips LLM
 @patch("utils.llm.get_llm")
 def test_ask_ml_jailbreak_detected_yields_idk(mock_get_llm, client: TestClient, test_session: Session, mock_detect_with_both):
     mock_detect_with_both.return_value = {
@@ -323,7 +357,7 @@ def test_ask_ml_jailbreak_detected_yields_idk(mock_get_llm, client: TestClient, 
 
     assert response.status_code == 200
     assert "event: token" in response.text
-    assert 'data: {"text": "I don\'t know."}' in response.text
+    assert "ticket has been generated with id" in response.text
     assert "event: saved" in response.text
 
     # Verify LLM was NOT called
@@ -332,13 +366,14 @@ def test_ask_ml_jailbreak_detected_yields_idk(mock_get_llm, client: TestClient, 
     # Verify call saved to database with zero token cost
     saved_calls = test_session.exec(select(LLMCall)).all()
     assert len(saved_calls) == 1
-    assert saved_calls[0].output == "I don't know."
+    assert "ticket has been generated with id" in saved_calls[0].output
     assert saved_calls[0].cost_usd == 0.0
 
 
 # 13. Test direct generate() with ML jailbreak detection
 def test_generate_ml_jailbreak_yields_idk(mock_detect_with_both, monkeypatch: pytest.MonkeyPatch, test_session: Session):
-    monkeypatch.setattr("utils.llm.engine", test_engine)
+    monkeypatch.setattr("database.database.engine", test_engine)
+    monkeypatch.setattr("utils.llm.db.engine", test_engine)
     mock_detect_with_both.return_value = {
         "query": "test attack",
         "svm": "jailbreak",
@@ -356,11 +391,11 @@ def test_generate_ml_jailbreak_yields_idk(mock_detect_with_both, monkeypatch: py
 
     output = asyncio.run(run())
     assert "event: token" in output
-    assert 'data: {"text": "I don\'t know."}' in output
+    assert "ticket has been generated with id" in output
     assert "event: saved" in output
 
 
-# 14. Test ML model classification exception fallback to "I don't know."
+# 14. Test ML model classification exception fallback to ticket message
 @patch("utils.llm.get_llm")
 def test_ask_ml_classifier_error_fallback(mock_get_llm, client: TestClient, test_session: Session, mock_detect_with_both):
     mock_detect_with_both.side_effect = RuntimeError("Classification error")
@@ -368,7 +403,7 @@ def test_ask_ml_classifier_error_fallback(mock_get_llm, client: TestClient, test
     response = client.post("/ask", json=payload)
 
     assert response.status_code == 200
-    assert 'data: {"text": "I don\'t know."}' in response.text
+    assert "ticket has been generated with id" in response.text
     assert "event: saved" in response.text
     mock_get_llm.assert_not_called()
 

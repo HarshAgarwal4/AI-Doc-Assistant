@@ -23,6 +23,7 @@ from app.models.docModel import Document
 from app.models.feedback import Feedback, FeedbackRequestModel, FeedbackResponseModel
 from app.models.llm import LLMRequestModel
 from app.models.resumeModel import ResumeData
+from app.models.ticket import TicketModel
 from database.database import engine, get_session
 from utils.llm import generate
 from utils.logger import logger
@@ -873,5 +874,28 @@ async def get_feedbacks():
 @app.get("/feedbacks", response_model=list[Feedback], status_code=status.HTTP_200_OK, include_in_schema=False)
 async def get_feedbacks_alias():
     return await asyncio.to_thread(fetch_all_feedbacks)
+
+
+@app.get(
+    "/ticket",
+    response_model=list[TicketModel],
+    status_code=status.HTTP_200_OK,
+)
+def get_tickets(
+    session: Annotated[Session, Depends(get_session)],
+):
+    return session.exec(select(TicketModel)).all()
+
+
+@app.get(
+    "/tickets",
+    response_model=list[TicketModel],
+    status_code=status.HTTP_200_OK,
+    include_in_schema=False,
+)
+def get_tickets_alias(
+    session: Annotated[Session, Depends(get_session)],
+):
+    return session.exec(select(TicketModel)).all()
 
 

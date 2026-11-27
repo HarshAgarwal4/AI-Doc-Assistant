@@ -1,9 +1,14 @@
 import os
+from pathlib import Path
 
 from dotenv import load_dotenv
 from sqlmodel import Session, create_engine
 
-load_dotenv()
+ENV_PATH = Path(__file__).resolve().parent.parent / ".env"
+if ENV_PATH.exists():
+    load_dotenv(ENV_PATH)
+else:
+    load_dotenv()
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 PRODUCTION = os.getenv("PRODUCTION")

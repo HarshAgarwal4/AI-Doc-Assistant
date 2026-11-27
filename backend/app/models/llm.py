@@ -16,10 +16,10 @@ class LLMCall(SQLModel , table=True):
     provider: str = Field(index=True)
     model_name: str
     input : str
-    output : str
+    output : str | None = None
     input_tokens: int = Field(default=0)
     output_tokens: int = Field(default=0)
-    time_taken: float
+    time_taken: float | None = None
     cost_usd: float = Field(default=0.0)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(UTC),

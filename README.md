@@ -104,6 +104,13 @@ A high-performance document management API built with **FastAPI, Pydantic v2, SQ
   - **Feedback Retrieval (`GET /feedback` & `GET /feedbacks`):** Returns all historical feedback ratings with linked call IDs and timestamps.
   - **Interactive In-Browser Voting (`GET /page`):** Displays interactive thumbs-up and thumbs-down buttons directly under completed responses and gives immediate visual confirmation upon save.
 
+- **Autonomous Support Ticket & Escalation System (`/ticket`):**
+  - **Agent Tool Calling:** Equips the RAG agent with the `@tool` `create_support_ticket(resp_id, question, description)` to autonomously open human support tickets when requested information cannot be resolved from the context.
+  - **Clean Response Streaming:** Automatically isolates and discards intermediate `ToolMessage` payloads from Server-Sent Events (SSE) so users receive clean messages without raw tool execution IDs prepended.
+  - **Adversarial & Fallback Protection:** Queries flagged by ML prompt-injection classification or queries where no relevant context exists automatically generate a support ticket and respond with `"I don't know, the ticket has been generated with id {ticket_id} due to reason - {reason}"`.
+  - **Ticket Retrieval API (`GET /ticket` & `GET /tickets`):** Returns all logged support tickets with query details, reasons, resolution status (`pending`, `resolved`, `closed`), and timestamps.
+  - **Duplicate Prevention:** Idempotent ticket creation prevents duplicate records for the same LLM call response ID.
+
 ## 📁 Project Structure
 
 ```text
@@ -125,7 +132,10 @@ AI Doc Assistant/
     ├── linear_svm_model.pkl
     ├── naive_bayes_model.pkl
     ├── tfidf_vectorizer.pkl
-    ├── rag_security_training.csv
+    ├── prompt_injection.csv
+    ├── clean_prompt_injection.csv
+    ├── model_comparison.csv
+    ├── rag_security_test.csv
     ├── rag_eval_questions.json
     ├── test_questions.json
     ├── rag_testes_questions.json
@@ -140,9 +150,12 @@ AI Doc Assistant/
     │       ├── chunkModel.py
     │       ├── resumeModel.py
     │       ├── llm.py
-    │       └── feedback.py
+    │       ├── feedback.py
+    │       └── ticket.py
     ├── database/
     │   └── database.py
+    ├── tools/
+    │   └── ticket.py
     ├── utils/
     │   ├── chunking.py
     │   ├── embedding.py
@@ -168,7 +181,8 @@ AI Doc Assistant/
     │   ├── test_ask.py
     │   ├── test_prompt_parser.py
     │   ├── test_resume.py
-    │   └── test_feedback.py
+    │   ├── test_feedback.py
+    │   └── test_ticket_workflow.py
     └── uploads/
 ```
 
@@ -526,43 +540,32 @@ These hostnames refer to different network environments. The Compose configurati
 
 ## 🧪 Running Tests
 
-Run the test suite from the `backend/` directory:
+Run the full test suite (91 test cases across 8 test suites) from the `backend/` directory:
 
 ```bash
-
-uv run python -m pytest Tests/ -v
-
+uv run pytest test/ -v
 ```
 
-To run a particular test file:
+To run an individual test suite:
 
 ```bash
-
-uv run python -m pytest Tests/tests.py -v
-
+uv run pytest test/test_ticket_workflow.py -v
+uv run pytest test/test_ask.py -v
+uv run pytest test/test_feedback.py -v
 ```
 
-Tests should be able to use SQLite where appropriate, without requiring a PostgreSQL server to be running.
+Tests use an in-memory SQLite database via StaticPool, executing completely isolated without requiring a live PostgreSQL instance.
 
-### Test coverage
+### Test Suites Breakdown (91/91 Passed)
 
-- API health check.
-
-- Successful document uploads.
-
-- Unsupported file format rejection.
-
-- Maximum file size enforcement.
-
-- Empty file rejection.
-
-- Document listing.
-
-- Document metadata persistence.
-
-- Database model and CRUD behavior.
-
-For database-dependent tests, configure a separate SQLite engine or override the database dependency so tests do not modify your development PostgreSQL database.
+- **`test_ask.py` (15 tests):** Server-Sent Events streaming, LLM rate-limit (429) & timeout retries, input validation, citation prompt formats, and ML adversarial prompt detection.
+- **`test_ticket_workflow.py` (9 tests):** RAG autonomous support ticket creation, idempotency, jailbreak ticketing, and `GET /ticket` / `GET /tickets` endpoint schemas and status filters.
+- **`test_feedback.py` (10 tests):** Feedback creation (`Thumbs_up`/`Thumbs_down`), validation, optional comments, and retrieval endpoints.
+- **`test_db.py` (9 tests):** Health endpoints, file size limits, duplicate SHA256 detection (409 Conflict), file extension validation.
+- **`test_ingestion.py` (14 tests):** Text chunking, 800-char sizes with 100-char overlap, page tracking, PDF & DOCX extraction.
+- **`test_prompt_parser.py` (12 tests):** Prompt sanitization, HTML/XML tag removal, control token stripping, jailbreak pattern neutralization.
+- **`test_resume.py` (12 tests):** Resume extraction from PDF, DOCX, TXT, structured JSON validation, and error recovery retries.
+- **`test_retriever.py` (10 tests):** Semantic retrieval queries, top-k ranking, ready-state filtering, and database synchronization.
 
 ## 📡 API Reference
 
@@ -1178,6 +1181,40 @@ Collect, track, and evaluate user satisfaction on RAG-generated answers.
       "record_id": "e8a93940-1e5b-4357-9db0-fb1604a3ad63",
       "rating": "Thumbs_up",
       "comment": "Accurate figures and proper page citations."
+    }
+  ]
+  ```
+
+## 🎫 Support Ticket & Escalation API (`/ticket`)
+
+When an answer cannot be determined from the indexed documents or when an adversarial query is detected, the system automatically creates a support ticket in PostgreSQL linked to the originating LLM call record (`llm_calls.id`).
+
+### Ticket Creation Workflow
+1. **User sends query:** An initial `LLMCall` record is created, assigning an `llm_call_id`.
+2. **Security Check (`ML/predict.py`):** If classified as malicious, a ticket is immediately generated with reason `"Query flagged by security classification"` and the system returns:
+   ```text
+   I don't know, the ticket has been generated with id <ticket_id> due to reason - Query flagged by security classification
+   ```
+3. **Agent Execution & Tool Calling:** If benign, the RAG agent retrieves context chunks. If the answer is not present, the agent invokes `create_support_ticket(resp_id="{llm_call_id}", question="{question}", description="{reason}")`.
+4. **Clean Token Streaming:** Intermediate `ToolMessage` payloads are intercepted and excluded from the SSE token stream, ensuring clean user-facing responses without raw ticket IDs prepended.
+5. **Auditing & Tracking:** `LLMCall` record is updated with final response, token usage, latency, and cost in USD.
+
+### Endpoints
+
+#### 1. Get All Tickets
+- **Method:** `GET /ticket` (or `GET /tickets`)
+- **Status Code:** `200 OK`
+- **Response Body:**
+  ```json
+  [
+    {
+      "id": "bc71e70a-8937-402f-876e-a161dca9cef6",
+      "resp_id": "07d020e0-a8e5-4315-b47e-ab5c1b4fc77f",
+      "query": "What is the quantum state of X?",
+      "description": "The provided document context does not contain information about the quantum state of X.",
+      "status": "pending",
+      "created_at": "2026-11-25T04:21:25.000Z",
+      "updated_at": "2026-11-25T04:21:25.000Z"
     }
   ]
   ```
